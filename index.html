@@ -629,7 +629,20 @@ const srcOf = n => n - (S.firstMap - 1);
 function refresh(){ if(S.ready){ evaluateAll(); renderAll(); } else renderSettings(); }
 async function connectDownloads(){
   S.dl = await (window.claude?.use?.('downloads') ?? Promise.resolve(null));
+  if(!S.dl) S.dl = browserDownloads();   // claude.ai 밖(Vercel 등): 브라우저 기본 내려받기
   updateXlsx(); if(S.ready) renderExport();
+}
+function browserDownloads(){      // claude.ai 밖: <a download>로 브라우저 기본 내려받기
+  return {
+    async save({ filename, data }){
+      const blob = data instanceof Blob ? data : new Blob([data], { type: typeof data === 'string' ? 'text/plain;charset=utf-8' : 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename || 'download';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return { ok:true };
+    }
+  };
 }
 async function connectSample(){
   S.sample = await (window.claude?.use?.('sample') ?? Promise.resolve(null));
