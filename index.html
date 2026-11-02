@@ -1,4 +1,4 @@
-<title>Dana 1.0</title>
+<title>Dana 1.0.1</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -52,6 +52,7 @@ input[type=number]{width:64px;font-variant-numeric:tabular-nums}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px}
 .brand svg{width:28px;height:28px;flex:0 0 auto}
 .brand{flex-wrap:wrap;row-gap:0;min-width:0}
+.ver{font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;line-height:1.4;font-variant-numeric:tabular-nums}
 .slogan{font-size:12px;font-weight:500;color:var(--muted);padding-left:10px;border-left:1px solid var(--line);line-height:1.3}
 @media (max-width:560px){.slogan{display:none}}
 .hero{padding-block:26px 22px;display:grid;gap:8px;max-width:760px}
@@ -344,7 +345,7 @@ input[type=checkbox]{accent-color:var(--brand);width:16px;height:16px;margin:0}
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="2" width="17" height="22" rx="3" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.6"/><path d="M7 8h9M7 12h9M7 16h5" stroke="var(--brand)" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="19.5" r="4.6" fill="var(--panel)" stroke="var(--brand)" stroke-width="1.8"/><path d="m22.8 22.8 3 3" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Dana 1.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
+      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.0.1</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
     </div>
     <div class="topr"><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
     <button class="ghost" type="button" id="goHelp">검사 기준 보기</button></div>
@@ -542,6 +543,8 @@ const isWord = c => /[가-힣A-Za-z0-9]/.test(c);
 if(window.pdfjsLib){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }catch(e){} }
 
 // ═════════════════════════════ 상태
+// 버전: 고칠 때마다 이 값과 README 「변경 기록」을 함께 올립니다.
+const VERSION = '1.0.1';
 const S = {
   data:null, gov:null, govOverride:null,
   source:null, batches:[], design:{}, mode:'page', firstMap:1,
@@ -555,6 +558,7 @@ let batchSeq = 0;
 
 // ═════════════════════════════ 시작
 async function boot(){
+  document.title = 'Dana ' + VERSION; $('#appVer').textContent = 'v' + VERSION;
   bindUI(); bindApply(); bindExport();
   S.data = CONFIG; S.gov = buildGov();
   renderCards(); renderHelp(); renderSettings(); renderSys(); renderLock(); renderStepper(); renderWs(); renderApply(); renderExport();
@@ -629,7 +633,20 @@ const srcOf = n => n - (S.firstMap - 1);
 function refresh(){ if(S.ready){ evaluateAll(); renderAll(); } else renderSettings(); }
 async function connectDownloads(){
   S.dl = await (window.claude?.use?.('downloads') ?? Promise.resolve(null));
+  if(!S.dl) S.dl = browserDownloads();   // claude.ai 밖(Vercel 등): 브라우저 기본 내려받기
   updateXlsx(); if(S.ready) renderExport();
+}
+function browserDownloads(){      // claude.ai 밖: <a download>로 브라우저 기본 내려받기
+  return {
+    async save({ filename, data }){
+      const blob = data instanceof Blob ? data : new Blob([data], { type: typeof data === 'string' ? 'text/plain;charset=utf-8' : 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename || 'download';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return { ok:true };
+    }
+  };
 }
 async function connectSample(){
   S.sample = await (window.claude?.use?.('sample') ?? Promise.resolve(null));
