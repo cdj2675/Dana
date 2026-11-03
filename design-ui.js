@@ -117,7 +117,8 @@ function P1(){
     ${nR ? `<div class="row" style="gap:6px">${A.refs.map(r => `<img src="${r.url}" alt="${esc(r.name)}" title="${esc(r.name)}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">`).join('')}</div>` : ''}
     ${msgHtml('assets')}</div>`;
   const okNext = !!M;
-  return `<section class="dpanel">${phead('자료 올리기', '가진 파일을 칸에 끌어다 놓기만 하면 됩니다. 원고는 꼭 필요하고, 나머지는 없어도 진행됩니다.')}<p class="note" data-vault-note>${Vault.noteHtml()}</p>
+  const anyUp = !!(D.ms || D.rfp || D.assets.grids.length || D.assets.refs.length || D.fams.length || D.assets.icons.length || D.assets.tokens || D.restored);
+  return `<section class="dpanel">${phead('자료 올리기', '가진 파일을 칸에 끌어다 놓기만 하면 됩니다. 원고는 꼭 필요하고, 나머지는 없어도 진행됩니다.', anyUp && !D.resetAsk ? '<button type="button" class="ghost resetbtn" data-act="resetAsk">자료 초기화</button>' : '')}${D.resetAsk ? `<div class="msg warn resetask" role="alert"><span>올린 과업지시서·원고·디자인 자료와 지금까지 고른 무드·색·확정(1~4단계)을 모두 지웁니다.${W.ok() ? ' 다른 컴퓨터용으로 보관한 파일과 저장된 진행 상태도 함께 지웁니다.' : ''} 되돌릴 수 없습니다.</span><span class="row" style="gap:6px"><button type="button" class="danger" data-act="resetDo">초기화</button><button type="button" class="ghost" data-act="resetNo">취소</button></span></div>` : ''}<p class="note" data-vault-note>${Vault.noteHtml()}</p>
     ${D.restored && !M ? `<div class="msg info">저장된 프로젝트(${esc(D.restored)})를 불러왔습니다. 원고 파일을 다시 올리면 이어서 작업합니다. 올린 파일은 저장하지 않습니다.</div>` : ''}
     <div class="dcols">
       <div class="dcol"><h3>과업지시서·제안요청서 <span class="pill">선택</span></h3><p class="hint2">과업지시서·제안요청서·입찰 공고를 함께 올리면 같이 읽습니다</p>${dropZone('rfp', '파일 선택 (여러 개)', 'PDF·HWP·HWPX·DOCX', '.pdf,.hwp,.hwpx,.docx,.txt', true)}${msgHtml('rfp')}${rf}</div>
@@ -468,6 +469,18 @@ async function fillPreviews(){
 }
 
 // ───────────── 이벤트
+// 디자인 탭 자료 초기화: 올린 자료·고른 스타일·확정을 지우고, 보관 파일·저장된 진행 상태도 지움
+async function resetDesign(){
+  D.resetAsk = false;
+  Object.assign(D, { rfp:null, ms:null, assets:{ grids:[], refs:[], fonts:[], icons:[], tokens:null }, fams:[], roles:{ body:'@noto', title:'@noto', num:null },
+    grid:null, mood:'navy', colors:{ primary:null, accent:null }, iconMap:{}, msgs:{}, patEdit:false, mapOpen:false,
+    restored:null, restoredSig:null, restoredGates:null, restoredGuide:null, restoredPageOpt:null, restoredRoles:null });
+  resetProject(); resetMetrics(); PV.clear();
+  renderBanner(); renderDesign();
+  if(W.ok()) try{ await W.del('design/state'); }catch(e){ console.warn('design reset', e); }
+  await Vault.drop('design:ms'); await Vault.drop('design:assets');
+  dmsg('ms', 'info', '자료를 모두 지웠습니다. 새 자료를 올려 주세요.'); renderDesign();
+}
 function afterItemChange(){ D.rfp.itemsOk = false; D._an = null; D._auto = null; if(D.gates.g1) D.gates.g2 = false; renderDesign(); saveSoon(); }
 function bindDesign(){
   const z = DZ();
@@ -495,6 +508,9 @@ const ACT = {
   rmRfp:() => { D.rfp = null; D.mapping = null; D._an = null; afterConChange(); },
   rmRfpDoc:el => { const docs = (D.rfp?.docs || []).filter(d => d.name !== el.dataset.name); D.rfp = docs.length ? combineRfp(docs, D.rfp) : null; D.mapping = null; D._an = null; D._auto = null; if(D.gates.g1) D.gates.g2 = false; afterConChange(); },
   rmMs:() => { D.ms = null; resetProject(); Vault.drop('design:ms'); renderDesign(); renderBanner(); },
+  resetAsk:() => { D.resetAsk = true; renderDesign(); },
+  resetNo:() => { D.resetAsk = false; renderDesign(); },
+  resetDo:() => resetDesign(),
   itemsOk:() => { D.rfp.itemsOk = true; renderDesign(); saveSoon(); },
   rmItem:el => { D.rfp.items = D.rfp.items.filter(i => i.id !== el.dataset.id); if(D.mapping) delete D.mapping[el.dataset.id]; if(D.rfp.mode === 'derived') normDerived(D.rfp.items); afterItemChange(); },
   msOk:() => { D.ms.ok = true; renderDesign(); },

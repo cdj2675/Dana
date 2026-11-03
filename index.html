@@ -97,6 +97,14 @@ input[type=number]{width:64px;font-variant-numeric:tabular-nums}
 .intake{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:16px}
 .sechead{display:flex;gap:12px;align-items:flex-start}
 .sechead p{color:var(--muted);font-size:13px;margin-top:2px}
+.sechead>div{flex:1 1 auto;min-width:0}
+.revreset{margin-left:auto;flex:0 1 auto;max-width:100%}
+.resetbtn{white-space:nowrap}
+.resetask{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.dpanel>.resetask{margin:10px 0}
+button.danger{background:var(--err);border-color:var(--err);color:#fff}
+button.danger:hover{filter:brightness(1.08)}
+@media (max-width:640px){.sechead{flex-wrap:wrap}.revreset{margin-left:0;width:100%}}
 .intake-grid{display:grid;grid-template-columns:minmax(0,1fr) 34px minmax(0,2fr);gap:0;align-items:stretch}
 .icol{display:grid;grid-template-rows:auto 1fr;gap:10px;min-width:0}
 .tgrid{display:grid;border:1.5px solid transparent;padding:8px}
@@ -530,7 +538,7 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="2" width="17" height="22" rx="3" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.6"/><path d="M7 8h9M7 12h9M7 16h5" stroke="var(--brand)" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="19.5" r="4.6" fill="var(--panel)" stroke="var(--brand)" stroke-width="1.8"/><path d="m22.8 22.8 3 3" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.5.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
+      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.6.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
     </div>
     <div class="topr"><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
     <button class="ghost" type="button" id="goHelp">검사 기준 보기</button></div>
@@ -554,7 +562,7 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
   <nav class="stepper" id="stepper" aria-label="진행 단계"></nav>
 
   <section class="intake" id="intake" aria-labelledby="intakeH">
-    <div class="sechead"><span class="num">1</span><div><h2 id="intakeH">자료 올리기</h2><p>디자인과 기준 자료를 하나 이상 올리세요. <span class="vnote" data-vault-note></span></p></div></div>
+    <div class="sechead"><span class="num">1</span><div><h2 id="intakeH">자료 올리기</h2><p>디자인과 기준 자료를 하나 이상 올리세요. <span class="vnote" data-vault-note></span></p></div><span id="revReset" class="revreset"></span></div>
     <div class="intake-grid">
       <div class="icol target">
         <div class="icolh"><b>검수 대상</b><span class="pill req" id="needDes">필수</span></div>
@@ -737,7 +745,7 @@ if(window.pdfjsLib){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnj
 
 // ═════════════════════════════ 상태
 // 버전: 고칠 때마다 이 값과 README 「변경 기록」을 함께 올립니다.
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const S = {
   data:null, gov:null, govOverride:null,
   source:null, batches:[], design:{}, mode:'page', firstMap:1,
@@ -904,12 +912,26 @@ function renderRunOpts(){
   $('#offWrap').hidden = S.mode !== 'page' || !S.source;
   $('#firstMap').value = S.firstMap;
 }
-function afterChange(){ renderIntake(); if(S.running) return; if(!canRun()){ S.ready = false; renderApply(); renderExport(); } runAll({ ocr:false }); }
+// 검수 탭 자료 초기화: 디자인 파일·기준 원문(보관 파일 포함). 디자인 시스템 설정과 저장된 적용본은 남김
+function renderRevReset(){
+  const box = $('#revReset'); if(!box) return;
+  const any = !!S.source || S.batches.some(b => !b.isSaved);
+  if(!any){ box.innerHTML = ''; S.revResetAsk = false; return; }
+  box.innerHTML = S.revResetAsk
+    ? `<span class="msg warn resetask" role="alert"><span>올린 디자인 파일과 기준 원문을 모두 지웁니다${window.Vault?.ok() ? '(보관한 파일 포함)' : ''}. 디자인 시스템 설정과 저장된 적용본은 남습니다.</span><span class="row" style="gap:6px"><button type="button" class="danger" id="revResetDo">초기화</button><button type="button" class="ghost" id="revResetNo">취소</button></span></span>`
+    : '<button type="button" class="ghost resetbtn" id="revResetAsk">자료 초기화</button>';
+  $('#revResetAsk')?.addEventListener('click', () => { S.revResetAsk = true; renderRevReset(); });
+  $('#revResetNo')?.addEventListener('click', () => { S.revResetAsk = false; renderRevReset(); });
+  $('#revResetDo')?.addEventListener('click', () => { S.revResetAsk = false; window.Vault?.drop('review:src'); window.Vault?.drop('review:des');
+    S.source = null; S.srcMsg = null; S.srcScope = { part:false, text:'', set:null }; S.batches = S.batches.filter(b => b.isSaved); S.desMsg = null;
+    buildDesign(); renderCards(); afterChange(); runText('검수 자료를 모두 지웠습니다.'); });
+}
+function afterChange(){ renderIntake(); renderRevReset(); if(S.running) return; if(!canRun()){ S.ready = false; renderApply(); renderExport(); } runAll({ ocr:false }); }
 function runText(t){ $('#runText').textContent = t; }
 function bar(f){ $('#bar').style.width = Math.round(Math.max(0, Math.min(1, f))*100) + '%'; }
 
 // ═════════════════════════════ 업로드 카드
-function renderCards(){
+function renderCards(){ queueMicrotask(renderRevReset);
   renderRunOpts(); renderScopes(); renderStepper(); renderIntake();
   // 원문
   const s = S.source; let h = '';
