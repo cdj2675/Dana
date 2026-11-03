@@ -551,8 +551,8 @@ async function paletteOf(blobOrCanvas){
   let c;
   if(blobOrCanvas instanceof HTMLCanvasElement) c = blobOrCanvas;
   else { const bmp = await createImageBitmap(blobOrCanvas); c = document.createElement('canvas'); c.width = 72; c.height = Math.max(1, Math.round(72 * bmp.height / bmp.width)); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close?.(); }
-  const small = document.createElement('canvas'); small.width = 72; small.height = Math.max(1, Math.round(72 * c.height / c.width)); small.getContext('2d').drawImage(c, 0, 0, small.width, small.height);
-  const d = small.getContext('2d').getImageData(0, 0, small.width, small.height).data; const cnt = new Map();
+  const small = document.createElement('canvas'); small.width = 72; small.height = Math.max(1, Math.round(72 * c.height / c.width)); small.getContext('2d', { willReadFrequently:true }).drawImage(c, 0, 0, small.width, small.height);
+  const d = small.getContext('2d', { willReadFrequently:true }).getImageData(0, 0, small.width, small.height).data; const cnt = new Map();
   for(let i=0;i<d.length;i+=4){ const [r,g,b] = [d[i], d[i+1], d[i+2]]; const [, s, l] = rgb2hsl(r, g, b); if(l > .9 || l < .12 || s < .18) continue; const k = (r >> 4) << 8 | (g >> 4) << 4 | (b >> 4); cnt.set(k, (cnt.get(k) || 0) + 1); }
   const out = [];
   for(const [k] of [...cnt.entries()].sort((a,b) => b[1]-a[1])){ const hex = rgb2hex(((k >> 8) & 15) * 17, ((k >> 4) & 15) * 17, (k & 15) * 17); if(out.every(o => colorDist(o, hex) > 60)) out.push(hex); if(out.length >= 6) break; }
@@ -574,10 +574,17 @@ async function classifyAssets(files){
         D.assets.refs.push({ name:f.name, kind:'image', url, palette:pal });
       }
       else if(ext === 'pdf'){
-        const pdf = await openPdf(f); const pg = await pdf.getPage(1); const vp = pg.getViewport({ scale:1 }); const v = pg.getViewport({ scale:360 / Math.max(vp.width, vp.height) });
-        const c = document.createElement('canvas'); c.width = Math.round(v.width); c.height = Math.round(v.height); const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-        await pg.render({ canvasContext:ctx, viewport:v }).promise; pg.cleanup();
-        D.assets.refs.push({ name:f.name, kind:'pdf', url:c.toDataURL('image/jpeg', .85), palette:await paletteOf(c) });
+        // 여러 쪽 PDF(지난 제안서 등): 표지·간지·목차(앞 3쪽)를 건너뛰고 본문에서 고르게 최대 6쪽을 읽어 색을 뽑음
+        const pdf = await openPdf(f); const N = pdf.numPages; const from = N >= 6 ? 4 : 1; const k = Math.min(6, N - from + 1);
+        const pick = [...new Set(Array.from({ length:k }, (_, i) => from + Math.round(i * (N - from) / Math.max(1, k - 1))))];
+        const thumbs = [];
+        for(const [i, n] of pick.entries()){ if(pick.length > 1) busy(`「${f.name}」 ${N}쪽 중 ${n}쪽을 보는 중…`, .2 + .7 * i / pick.length);
+          const pg = await pdf.getPage(n); const vp = pg.getViewport({ scale:1 }); const v = pg.getViewport({ scale:300 / Math.max(vp.width, vp.height) });
+          const c = document.createElement('canvas'); c.width = Math.round(v.width); c.height = Math.round(v.height); const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+          await pg.render({ canvasContext:ctx, viewport:v }).promise; pg.cleanup(); thumbs.push(c); }
+        const all = document.createElement('canvas'); all.width = thumbs[0].width; all.height = thumbs.reduce((a, c) => a + c.height, 0); let yy = 0; for(const c of thumbs){ all.getContext('2d').drawImage(c, 0, yy); yy += c.height; }
+        D.assets.refs.push({ name:f.name, kind:'pdf', pages:N, read:pick, url:thumbs[0].toDataURL('image/jpeg', .85), palette:await paletteOf(all) });
+        if(N > 1) notes.push(`「${f.name}」 ${N}쪽 중 본문 ${pick.length}쪽(${pick.join('·')}쪽)에서 색을 뽑았습니다. 레퍼런스는 색 후보로만 쓰고 모양은 따라 하지 않습니다.`);
       }
       else notes.push(`「${f.name}」은 디자인 자료로 쓸 수 없는 형식입니다.`);
     }catch(e){ console.error(e); notes.push(e?.user || `「${f.name}」을 읽지 못했습니다.`); }
