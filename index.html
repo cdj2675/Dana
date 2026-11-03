@@ -530,7 +530,7 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="2" width="17" height="22" rx="3" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.6"/><path d="M7 8h9M7 12h9M7 16h5" stroke="var(--brand)" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="19.5" r="4.6" fill="var(--panel)" stroke="var(--brand)" stroke-width="1.8"/><path d="m22.8 22.8 3 3" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.4.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
+      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.5.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
     </div>
     <div class="topr"><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
     <button class="ghost" type="button" id="goHelp">검사 기준 보기</button></div>
@@ -589,7 +589,7 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
           <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="5" y="5" width="13" height="13" rx="2.5" stroke="currentColor" stroke-width="2"/><circle cx="28.5" cy="11.5" r="6.5" stroke="currentColor" stroke-width="2"/><path d="M5 35V24h13v11z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M22 24h13M22 29.5h13M22 35h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span class="pick">디자인 시스템 선택</span>
           <span class="or">또는 끌어다 놓기 · MD·PDF·PPTX·DOCX·JSON 등</span>
-          <input type="file" id="fileSys" accept=".md,.markdown,.json,.txt,.pdf,.docx,.hwpx,.pptx,.png,.jpg,.jpeg,text/markdown">
+          <input type="file" id="fileSys" accept=".md,.markdown,.json,.txt,.pdf,.docx,.hwp,.hwpx,.pptx,.png,.jpg,.jpeg,text/markdown">
         </label>
         
         <div class="cur" id="curSys"></div>
@@ -602,8 +602,8 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
         <label class="drop" id="dropSrc">
           <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M10 4h14l8 8v22a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2"/><path d="M24 4v8h8" stroke="currentColor" stroke-width="2"/><path d="M13 20h14M13 25h14M13 30h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span class="pick">원문 파일 선택</span>
-          <span class="or">또는 끌어다 놓기 · PPTX·DOCX·HWPX·PDF·TXT</span>
-          <input type="file" id="fileSrc" accept=".pptx,.docx,.hwpx,.pdf,.txt,.md">
+          <span class="or">또는 끌어다 놓기 · PPTX·DOCX·HWP·HWPX·PDF·TXT</span>
+          <input type="file" id="fileSrc" accept=".pptx,.docx,.hwp,.hwpx,.pdf,.txt,.md">
         </label>
         <div class="scope" id="scopeSrc">
           <span class="lbl">범위</span>
@@ -737,7 +737,7 @@ if(window.pdfjsLib){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnj
 
 // ═════════════════════════════ 상태
 // 버전: 고칠 때마다 이 값과 README 「변경 기록」을 함께 올립니다.
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const S = {
   data:null, gov:null, govOverride:null,
   source:null, batches:[], design:{}, mode:'page', firstMap:1,
@@ -969,14 +969,14 @@ async function takeSource(files){
   const f = files[0]; const ext = extOf(f);
   if(files.length > 1) S.srcMsg = { lv:'info', t:'원문은 파일 1개만 씁니다. 첫 파일을 읽었습니다.' };
   else S.srcMsg = null;
-  if(ext === 'hwp'){ S.srcMsg = { lv:'err', t:'HWP 파일은 읽을 수 없습니다. 한글에서 HWPX 또는 PDF로 저장한 뒤 올려 주세요.' }; renderCards(); return; }
-  if(!['pptx','docx','hwpx','pdf','txt','md'].includes(ext)){ S.srcMsg = { lv:'err', t:`「${f.name}」은 원문으로 쓸 수 없는 형식입니다. PPTX·DOCX·HWPX·PDF·TXT를 올려 주세요.` }; renderCards(); return; }
+  if(!['pptx','docx','hwp','hwpx','pdf','txt','md'].includes(ext)){ S.srcMsg = { lv:'err', t:`「${f.name}」은 원문으로 쓸 수 없는 형식입니다. PPTX·DOCX·HWP·HWPX·PDF·TXT를 올려 주세요.` }; renderCards(); return; }
   runText(`원문 「${f.name}」을 읽는 중…`); bar(.1);
   try{
     let src;
     if(ext === 'pptx') src = await parsePptx(f);
     else if(ext === 'docx') src = await parseDocx(f);
     else if(ext === 'hwpx') src = await parseHwpx(f);
+    else if(ext === 'hwp') src = await parseHwp(f);
     else if(ext === 'pdf') src = await parsePdfSource(f);
     else src = await parseTxt(f);
     const total = Object.values(src.pages).reduce((a,p)=>a+p.paras.length,0);
@@ -1085,6 +1085,8 @@ async function parseHwpx(file){
   }
   return pagesToSource(file, 'hwpx', pages.filter(p => p.length));
 }
+// HWP(5.0 바이너리): hwp-read.js로 문단·표 칸을 꺼냄
+async function parseHwp(file){ const r = await readHwpBin(file); return pagesToSource(file, 'hwp', r.pages.map(p => p.paras).filter(p => p.length)); }
 async function parseTxt(file){
   const t = await file.text();
   const pages = t.split('\f').map(pg => pg.split(/\r?\n/).filter(l => l.trim()));
@@ -2697,8 +2699,8 @@ const SYS_PROMPT = `다음은 제안서·문서의 디자인 시스템(디자인
 async function textOfFile(f){
   const ext = extOf(f);
   if(ext === 'json' || ext === 'md' || ext === 'markdown' || ext === 'txt') return await f.text();
-  if(ext === 'pptx' || ext === 'docx' || ext === 'hwpx'){
-    const src = ext === 'pptx' ? await parsePptxAll(f) : ext === 'docx' ? await parseDocx(f) : await parseHwpx(f);
+  if(ext === 'pptx' || ext === 'docx' || ext === 'hwpx' || ext === 'hwp'){
+    const src = ext === 'pptx' ? await parsePptxAll(f) : ext === 'docx' ? await parseDocx(f) : ext === 'hwp' ? await parseHwp(f) : await parseHwpx(f);
     return Object.keys(src.pages).sort((a,b) => a-b).map(k => src.pages[k].paras.join('\n')).join('\n\n');
   }
   if(ext === 'pdf'){
@@ -2769,8 +2771,8 @@ function parseSysText(text, fileName){
 
 async function takeSys(files){
   const f = files[0]; const ext = extOf(f) === 'markdown' ? 'md' : extOf(f); S.sysMsg = null;
-  const okExt = ['json','md','markdown','txt','pdf','docx','hwpx','pptx','png','jpg','jpeg'];
-  if(!okExt.includes(ext)){ S.sysMsg = { lv:'err', t:`「${f.name}」은 디자인 시스템으로 읽을 수 없는 형식입니다. JSON·PDF·DOCX·PPTX·HWPX·MD·TXT·PNG·JPG를 올려 주세요.` }; renderSys(); return; }
+  const okExt = ['json','md','markdown','txt','pdf','docx','hwp','hwpx','pptx','png','jpg','jpeg'];
+  if(!okExt.includes(ext)){ S.sysMsg = { lv:'err', t:`「${f.name}」은 디자인 시스템으로 읽을 수 없는 형식입니다. JSON·PDF·DOCX·PPTX·HWP·HWPX·MD·TXT·PNG·JPG를 올려 주세요.` }; renderSys(); return; }
   S.sysBusy = true; renderSys();
   try{
     let raw = null;
@@ -3173,6 +3175,7 @@ function renderIntake(){
 
 boot();
 </script>
+<script src="hwp-read.js"></script>
 <script src="design-data.js"></script>
 <script src="design-layout.js"></script>
 <script src="design-vault.js"></script>

@@ -120,8 +120,8 @@ function P1(){
   return `<section class="dpanel">${phead('자료 올리기', '가진 파일을 칸에 끌어다 놓기만 하면 됩니다. 원고는 꼭 필요하고, 나머지는 없어도 진행됩니다.')}<p class="note" data-vault-note>${Vault.noteHtml()}</p>
     ${D.restored && !M ? `<div class="msg info">저장된 프로젝트(${esc(D.restored)})를 불러왔습니다. 원고 파일을 다시 올리면 이어서 작업합니다. 올린 파일은 저장하지 않습니다.</div>` : ''}
     <div class="dcols">
-      <div class="dcol"><h3>과업지시서·제안요청서 <span class="pill">선택</span></h3><p class="hint2">과업지시서·제안요청서·입찰 공고를 함께 올리면 같이 읽습니다</p>${dropZone('rfp', '파일 선택 (여러 개)', 'PDF·HWPX·DOCX', '.pdf,.hwpx,.docx,.txt,.hwp', true)}${msgHtml('rfp')}${rf}</div>
-      <div class="dcol"><h3>원고 <span class="pill req">필수</span></h3><p class="hint2">주제별 원고. 원고 1쪽이 디자인 1쪽이 됩니다.</p>${dropZone('ms', '원고 선택', 'PPTX·DOCX·HWPX·PDF', '.pptx,.docx,.hwpx,.pdf,.txt,.hwp')}${msgHtml('ms')}${ms}</div>
+      <div class="dcol"><h3>과업지시서·제안요청서 <span class="pill">선택</span></h3><p class="hint2">과업지시서·제안요청서·입찰 공고를 함께 올리면 같이 읽습니다</p>${dropZone('rfp', '파일 선택 (여러 개)', 'PDF·HWP·HWPX·DOCX', '.pdf,.hwp,.hwpx,.docx,.txt', true)}${msgHtml('rfp')}${rf}</div>
+      <div class="dcol"><h3>원고 <span class="pill req">필수</span></h3><p class="hint2">주제별 원고. 원고 1쪽이 디자인 1쪽이 됩니다.</p>${dropZone('ms', '원고 선택', 'PPTX·DOCX·HWP·HWPX·PDF', '.pptx,.docx,.hwp,.hwpx,.pdf,.txt')}${msgHtml('ms')}${ms}</div>
       <div class="dcol"><h3>디자인 자료 <span class="pill">선택</span></h3><p class="hint2">그리드·레퍼런스·폰트를 한 번에. 종류는 Dana가 나눕니다.</p>${dropZone('assets', '디자인 자료 선택', 'PPTX·이미지·PDF·TTF·OTF', '.pptx,.png,.jpg,.jpeg,.webp,.pdf,.ttf,.otf,.ttc,.json,.svg,.woff,.woff2', true)}${da}</div>
     </div>${foot(okNext ? '' : '원고를 올리면 다음으로 갈 수 있습니다.', `<button type="button" class="primary big" data-act="go" data-k="2" ${okNext ? '' : 'disabled'}>다음: 디자인 시스템 →</button>`)}</section>`;
 }
