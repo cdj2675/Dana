@@ -108,7 +108,7 @@ function P1(){
     ${nR ? `<div class="row" style="gap:6px">${A.refs.map(r => `<img src="${r.url}" alt="${esc(r.name)}" title="${esc(r.name)}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">`).join('')}</div>` : ''}
     ${msgHtml('assets')}</div>`;
   const okNext = !!M;
-  return `<section class="dpanel">${phead('자료 올리기', '가진 파일을 칸에 끌어다 놓기만 하면 됩니다. 원고는 꼭 필요하고, 나머지는 없어도 진행됩니다.')}
+  return `<section class="dpanel">${phead('자료 올리기', '가진 파일을 칸에 끌어다 놓기만 하면 됩니다. 원고는 꼭 필요하고, 나머지는 없어도 진행됩니다.')}<p class="note" data-vault-note>${Vault.noteHtml()}</p>
     ${D.restored && !M ? `<div class="msg info">저장된 프로젝트(${esc(D.restored)})를 불러왔습니다. 원고 파일을 다시 올리면 이어서 작업합니다. 올린 파일은 저장하지 않습니다.</div>` : ''}
     <div class="dcols">
       <div class="dcol"><h3>과업지시서 <span class="pill">선택</span></h3><p class="hint2">과업지시서·제안요청서·입찰 공고</p>${dropZone('rfp', '과업지시서 선택', 'PDF·HWPX·DOCX', '.pdf,.hwpx,.docx,.txt,.hwp')}${msgHtml('rfp')}${rf}</div>
@@ -482,7 +482,7 @@ const ACT = {
   conOk:el => { const c = D.rfp.cons.find(x => x.id === el.dataset.id); if(c) c.status = 'ok'; afterConChange(); },
   conOff:el => { const c = D.rfp.cons.find(x => x.id === el.dataset.id); if(c) c.status = 'off'; afterConChange(); },
   rmRfp:() => { D.rfp = null; D.mapping = null; D._an = null; afterConChange(); },
-  rmMs:() => { D.ms = null; resetProject(); renderDesign(); renderBanner(); },
+  rmMs:() => { D.ms = null; resetProject(); Vault.drop('design:ms'); renderDesign(); renderBanner(); },
   itemsOk:() => { D.rfp.itemsOk = true; renderDesign(); },
   msOk:() => { D.ms.ok = true; renderDesign(); },
   mood:el => { if(D.mood !== el.dataset.v){ D.mood = el.dataset.v; D.colors = { primary:null, accent:null }; } for(const k of [...PV.keys()]) if(k.startsWith('mood:')) PV.delete(k); renderDesign(); saveSoon(); },
@@ -532,8 +532,9 @@ async function takeFiles(id, files){
       for(const p of ms.pages) for(const pic of p.pics){ const im = await loadImg(pic.url); pic.w = im?.naturalWidth || 4; pic.h = im?.naturalHeight || 3; }
       const same = D.ms && D.ms.name === ms.name && D.ms.pages.length === ms.pages.length || (D.restoredSig && D.restoredSig.name === ms.name && D.restoredSig.pages === ms.pages.length);
       D.ms = ms; if(!same) resetProject(); else { D.pages = {}; D._auto = null; D._an = null; }
-      D.restored = null; await ensureFonts(ms.text); }
+      D.restored = null; await ensureFonts(ms.text); Vault.put('design:ms', [files[0]]); }
     else { busy('디자인 자료를 나누는 중…', .3); const notes = await classifyAssets(files); if(notes.length) dmsg('assets', 'info', notes.join(' '));
+      Vault.put('design:assets', files.filter(f => ['pptx','ttf','otf','ttc','json','png','jpg','jpeg','webp','svg','pdf'].includes(extOf(f))), { append:true });
       if(D.assets.tokens) applyTokensFile(D.assets.tokens); resetMetrics(); PV.clear(); await ensureFonts(D.ms?.text); }
   }catch(e){ console.error(e); dmsg(id, 'err', e?.user || `「${files[0].name}」을 읽지 못했습니다. 파일이 손상되지 않았는지 확인해 주세요.`); }
   busy(null); D.step = 1; renderBanner(); renderDesign(); saveSoon();
@@ -590,8 +591,8 @@ window.Design = {
     $('#conBar').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if(!b) return; const f = ACT[b.dataset.act]; if(f) f(b); });
     let m = 'design'; try{ m = localStorage.getItem('dana:mode') || 'design'; }catch(e){}
     setTab(m, false); renderBanner();
-    if(S.dbTried) loadState();
+    Vault.init().then(() => { Vault.render(); if(S.dbTried && W.ok()) this.onWs(); });
   },
-  onWs(){ if(!D.ms){ loadState(); } },
+  async onWs(){ if(!D.ms) await loadState(); await Vault.restore(); },
 };
 window.Design.init();

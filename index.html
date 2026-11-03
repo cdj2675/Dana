@@ -525,7 +525,7 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="2" width="17" height="22" rx="3" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.6"/><path d="M7 8h9M7 12h9M7 16h5" stroke="var(--brand)" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="19.5" r="4.6" fill="var(--panel)" stroke="var(--brand)" stroke-width="1.8"/><path d="m22.8 22.8 3 3" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.1.2</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
+      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.2.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
     </div>
     <div class="topr"><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
     <button class="ghost" type="button" id="goHelp">검사 기준 보기</button></div>
@@ -549,7 +549,7 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
   <nav class="stepper" id="stepper" aria-label="진행 단계"></nav>
 
   <section class="intake" id="intake" aria-labelledby="intakeH">
-    <div class="sechead"><span class="num">1</span><div><h2 id="intakeH">자료 올리기</h2><p>디자인과 기준 자료를 하나 이상 올리세요.</p></div></div>
+    <div class="sechead"><span class="num">1</span><div><h2 id="intakeH">자료 올리기</h2><p>디자인과 기준 자료를 하나 이상 올리세요. <span class="vnote" data-vault-note></span></p></div></div>
     <div class="intake-grid">
       <div class="icol target">
         <div class="icolh"><b>검수 대상</b><span class="pill req" id="needDes">필수</span></div>
@@ -732,7 +732,7 @@ if(window.pdfjsLib){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnj
 
 // ═════════════════════════════ 상태
 // 버전: 고칠 때마다 이 값과 README 「변경 기록」을 함께 올립니다.
-const VERSION = '1.1.2';
+const VERSION = '1.2.0';
 const S = {
   data:null, gov:null, govOverride:null,
   source:null, batches:[], design:{}, mode:'page', firstMap:1,
@@ -918,7 +918,7 @@ function renderCards(){
   }
   if(S.srcMsg) h += `<div class="msg ${S.srcMsg.lv}">${esc(S.srcMsg.t)}</div>`;
   $('#curSrc').innerHTML = h;
-  $('#srcClear')?.addEventListener('click', () => { S.srcMsg = null; S.source = null; S.srcScope = { part:false, text:'', set:null }; renderCards(); afterChange(); });
+  $('#srcClear')?.addEventListener('click', () => { window.Vault?.drop('review:src'); S.srcMsg = null; S.source = null; S.srcScope = { part:false, text:'', set:null }; renderCards(); afterChange(); });
 
   // 디자인
   const ps = allDesignPages(); const cnt = { svg:0, pdf:0, image:0 };
@@ -942,9 +942,9 @@ function renderCards(){
   if(S.desMsg) d += `<div class="msg ${S.desMsg.lv}">${esc(S.desMsg.t)}</div>`;
   d += '<div class="note">쪽 번호는 파일 이름 숫자(p05)로 맞춥니다.</div>';
   $('#curDes').innerHTML = d;
-  $('#curDes').querySelectorAll('button[data-rm]').forEach(b => b.addEventListener('click', () => { S.batches = S.batches.filter(x => x.id !== +b.dataset.rm); S.desMsg = null; buildDesign(); renderCards(); afterChange(); }));
+  $('#curDes').querySelectorAll('button[data-rm]').forEach(b => b.addEventListener('click', () => { const bb = S.batches.find(x => x.id === +b.dataset.rm); if(bb && !bb.isSaved && !bb.fromDesign) window.Vault?.drop('review:des', bb.kind === 'pdf' ? [bb.label] : bb.items.map(i => i.name)); S.batches = S.batches.filter(x => x.id !== +b.dataset.rm); S.desMsg = null; buildDesign(); renderCards(); afterChange(); }));
   $('#desDefault')?.addEventListener('click', () => { S.batches.unshift(S.defaultBatch); S.desMsg = null; buildDesign(); renderCards(); afterChange(); });
-  $('#desClear')?.addEventListener('click', () => { S.batches = []; S.desMsg = null; buildDesign(); renderCards(); afterChange(); });
+  $('#desClear')?.addEventListener('click', () => { window.Vault?.drop('review:des'); S.batches = []; S.desMsg = null; buildDesign(); renderCards(); afterChange(); });
   $('#curDes').querySelectorAll('input[data-start]').forEach(inp => inp.addEventListener('change', () => {
     const b = S.batches.find(x => x.id === +inp.dataset.start); if(!b) return;
     b.start = Math.max(1, Math.min(999, parseInt(inp.value)||1)); b.items.forEach((it,i) => it.n = b.start + i);
@@ -977,6 +977,7 @@ async function takeSource(files){
     const total = Object.values(src.pages).reduce((a,p)=>a+p.paras.length,0);
     if(!total){ S.srcMsg = { lv:'err', t:`「${f.name}」에서 글자를 찾지 못했습니다. 글자가 이미지로만 된 파일인지 확인해 주세요.` }; renderCards(); runText('원문을 바꾸지 않았습니다.'); return; }
     S.source = src; S.mode = src.paged ? 'page' : 'whole'; S.srcScope = { part:false, text:'', set:null };
+    window.Vault?.put('review:src', [f]);
     renderCards(); afterChange();
   }catch(e){
     console.error(e); S.srcMsg = { lv:'err', t:`「${f.name}」을 읽지 못했습니다. 파일이 손상되지 않았는지 확인해 주세요.` }; renderCards(); runText('원문을 바꾸지 않았습니다.');
@@ -1147,6 +1148,7 @@ async function takeDesign(files){
       next = Math.max(next, n0 + pdf.numPages); pdfNext = n0 + pdf.numPages;
       S.batches.push({ id:++batchSeq, kind:'pdf', label:f.name, start:n0, items });
     }
+    window.Vault?.put('review:des', [...svgs, ...imgs, ...pdfs], { append:true });
   }catch(e){ console.error(e); S.desMsg = { lv:'err', t:'파일을 읽다가 멈췄습니다. 손상되지 않은 파일인지 확인해 주세요.' }; }
   buildDesign(); renderCards(); afterChange();
 }
@@ -3101,8 +3103,8 @@ function renderWs(){
   h += `<div class="wsbox"><div class="lbl">파티 만들기</div><form class="row" id="wsNew"><input type="text" id="wsNewName" placeholder="파티 이름 (예: 제안서 디자인팀)" maxlength="40" required><button class="primary">만들기</button></form></div>
     <div class="wsbox"><div class="lbl">파티 참여</div><form class="row" id="wsJoin"><input type="text" id="wsJoinCode" placeholder="파티 코드 16자리" autocomplete="off" required><button>참여</button></form></div>
     ${S.wsMsg ? `<div class="msg ${S.wsMsg.lv}">${esc(S.wsMsg.t)}</div>` : ''}
-    <p class="note">올린 원문·디자인 파일은 어느 공간에도 저장하지 않습니다. 이 화면에만 있습니다.</p>`;
-  p.innerHTML = h;
+    ${window.Vault ? Vault.panelHtml() : '<p class="note">올린 원문·디자인 파일은 어느 공간에도 저장하지 않습니다. 이 화면에만 있습니다.</p>'}`;
+  p.innerHTML = h; window.Vault?.bindPanel(p);
   $('#wsClose').onclick = closeWs;
   p.querySelectorAll('button[data-ws]').forEach(b => b.addEventListener('click', async () => {
     const id = b.dataset.ws; S.wsMsg = null;
@@ -3168,4 +3170,5 @@ boot();
 </script>
 <script src="design-data.js"></script>
 <script src="design-layout.js"></script>
+<script src="design-vault.js"></script>
 <script src="design-ui.js"></script>
