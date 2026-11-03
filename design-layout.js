@@ -259,7 +259,7 @@ function blkList(items, C, W){
   const ind = 13, kidInd = 26, rows = [];
   for(const it of items){
     const note = it.note; const sz = note ? Math.max(C.cf, C.fs - 1) : C.fs;
-    rows.push({ k:note ? 'note' : 'item', lines:wrap(it.text, W - (note ? 0 : ind), 'body', 400, sz), sz });
+    rows.push({ k:note ? 'note' : it.plain ? 'para' : 'item', lines:wrap(it.text, W - (note || it.plain ? 0 : ind), 'body', 400, sz), sz });
     for(const k of (it.kids || [])) rows.push({ k:k.note ? 'note' : 'kid', lines:wrap(k.text, W - kidInd, 'body', 400, k.note ? Math.max(C.cf, C.fs - 1) : C.fs), sz:k.note ? Math.max(C.cf, C.fs - 1) : C.fs });
   }
   const g = 4 + 2 * (C.air || 0); const nat = rows.reduce((a, r) => a + r.lines.length * (r.sz === C.fs ? C.lh : r.sz * 1.5), 0) + g * Math.max(0, rows.length - 1);
@@ -268,6 +268,7 @@ function blkList(items, C, W){
     for(const r of rows){ const lh = r.sz === C.fs ? C.lh : r.sz * 1.5;
       if(r.k === 'item'){ out.push(E.ell(x + 2, yy + lh / 2 - 2.4, 4.8, 4.8, { fill:C.c.point })); out.push(T(r.lines, x + ind, yy, W - ind, { size:r.sz, color:C.c.ink, lh })); }
       else if(r.k === 'kid'){ out.push(E.line(x + ind + 2, yy + lh / 2, x + ind + 7, yy + lh / 2, { stroke:C.c.ink2, sw:1 })); out.push(T(r.lines, x + kidInd, yy, W - kidInd, { size:r.sz, color:C.c.ink2, lh })); }
+      else if(r.k === 'para') out.push(T(r.lines, x, yy, W, { size:r.sz, color:C.c.ink, lh }));
       else out.push(T(r.lines, x, yy, W, { size:r.sz, color:C.c.ink2, lh }));
       yy += r.lines.length * lh + gg; }
     return out; } };

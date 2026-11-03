@@ -77,9 +77,9 @@ async function readHwpBin(file){
   const SEC = dist ? 'ViewText' : 'BodyText';
   const secs = cfb.FullPaths.map(p => p.match(dist ? /\/ViewText\/Section(\d+)$/i : /\/BodyText\/Section(\d+)$/i)).filter(Boolean).map(m => +m[1]).sort((a, b) => a - b);
   if(!secs.length) throw { user:`「${file.name}」에서 본문을 찾지 못했습니다.` };
-  let page = 1; const pages = [{ n:1, lines:[], paras:[] }], tables = []; const cur = () => pages[pages.length - 1];
-  const newPage = () => { if(cur().lines.length || cur().paras.length){ page++; pages.push({ n:page, lines:[], paras:[] }); } };
-  const pushText = t => { for(const part of t.split('\n')){ const x = part.replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim(); if(x){ cur().lines.push(x); cur().paras.push(x); } } };
+  let page = 1; const pages = [{ n:1, lines:[], paras:[], blocks:[] }], tables = []; const cur = () => pages[pages.length - 1];
+  const newPage = () => { if(cur().lines.length || cur().paras.length){ page++; pages.push({ n:page, lines:[], paras:[], blocks:[] }); } };
+  const pushText = t => { for(const part of t.split('\n')){ const x = part.replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim(); if(x){ cur().lines.push(x); cur().paras.push(x); cur().blocks.push({ k:'p', text:x, lvl:0 }); } } };
   for(const sn of secs){
     let raw = get(`/${SEC}/Section${sn}`); if(!raw) continue;
     if(dist) raw = await hwpViewText(raw);
@@ -103,7 +103,7 @@ async function readHwpBin(file){
             else if(q.tag === HWPTAG.PARA_TEXT && c){ const t = hwpParaText(q.data).replace(/\s+/g, ' ').trim(); if(t) c.t.push(t); } }
           const rows = []; for(const x of cells){ (rows[x.row] ||= [])[x.col] = x.t.join(' '); }
           const rr = rows.filter(Boolean).map(r0 => Array.from(r0, v => v || ''));
-          if(rr.length){ tables.push({ page, rows:rr }); for(const row of rr){ const t = row.filter(Boolean).join(' | '); if(t) cur().lines.push(t); } for(const x of cells) for(const t of x.t) cur().paras.push(t); }
+          if(rr.length){ tables.push({ page, rows:rr }); cur().blocks.push({ k:'table', rows:rr }); for(const row of rr){ const t = row.filter(Boolean).join(' | '); if(t) cur().lines.push(t); } for(const x of cells) for(const t of x.t) cur().paras.push(t); }
           i = end - 1; continue; }
         continue; }   // 글상자·그림 속 글자는 아래 PARA_TEXT로 그대로 읽힘
       if(r.tag === HWPTAG.PARA_TEXT) pushText(hwpParaText(r.data));
