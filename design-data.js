@@ -143,6 +143,45 @@ async function readHwpxRich(file){
   return { pages:pages.filter(p => p.lines.length), tables };
 }
 
+// ───────────── 원고(DOCX·HWPX): 문단과 표를 순서대로, 굵게·큰 글자·제목 스타일·목록 정보와 함께
+async function msDocxBlocks(file){
+  const zip = await JSZip.loadAsync(file); const doc = parseXml(await zip.file('word/document.xml').async('string'));
+  const stf = zip.file('word/styles.xml'); const heads = new Set();
+  if(stf){ for(const st of desc(parseXml(await stf.async('string')).documentElement, 'style')){ const nm = (kid(st, 'name')?.getAttribute('w:val') || '').toLowerCase(); if(/heading|제목|title/.test(nm)) heads.add(st.getAttribute('w:styleId')); } }
+  const body = desc(doc.documentElement, 'body')[0]; let page = 1; const pages = [{ n:1, blocks:[] }]; const cur = () => pages[pages.length - 1];
+  const rendered = desc(body, 'lastRenderedPageBreak').length;
+  const brk = el => rendered ? desc(el, 'lastRenderedPageBreak').length : desc(el, 'br').filter(b => b.getAttribute('w:type') === 'page').length + (desc(el, 'pageBreakBefore').length ? 1 : 0);
+  const pText = p => { let s = ''; for(const e of p.getElementsByTagName('*')){ if(e.localName === 't') s += e.textContent; else if(e.localName === 'tab') s += ' '; } return s.replace(/\s+/g, ' ').trim(); };
+  const pInfo = p => { const pPr = kid(p, 'pPr'); const sty = pPr ? kid(pPr, 'pStyle')?.getAttribute('w:val') : null; const num = pPr ? kid(pPr, 'numPr') : null;
+    const runs = kids(p, 'r').filter(r => desc(r, 't').some(t => t.textContent.trim())); const bold = runs.length > 0 && runs.every(r => { const b = desc(r, 'b')[0]; return b && b.getAttribute('w:val') !== '0' && b.getAttribute('w:val') !== 'false'; });
+    const sz = Math.max(0, ...runs.map(r => +(desc(r, 'sz')[0]?.getAttribute('w:val') || 0) / 2));
+    return { head:!!(sty && heads.has(sty)), bold, size:sz || 0, bu:num ? '•' : null, lvl:num ? (n => n > 0 ? n + 1 : 0)(+(kid(num, 'ilvl')?.getAttribute('w:val') || 0)) : 0 }; };
+  for(const el of body.children){
+    if(el.localName === 'p'){ const b = brk(el); if(b){ page += b; pages.push({ n:page, blocks:[] }); } const t = pText(el); if(t) cur().blocks.push({ k:'p', text:t, ...pInfo(el) }); }
+    else if(el.localName === 'tbl'){ const rows = kids(el, 'tr').map(tr => kids(tr, 'tc').map(tc => desc(tc, 'p').map(pText).filter(Boolean).join(' '))).filter(r => r.some(Boolean)); if(rows.length) cur().blocks.push({ k:'table', rows }); }
+  }
+  return pages.filter(p => p.blocks.length);
+}
+async function msHwpxBlocks(file){
+  const zip = await JSZip.loadAsync(file); const cp = {};
+  const hf = zip.file('Contents/header.xml'); if(hf){ for(const c of desc(parseXml(await hf.async('string')).documentElement, 'charPr')) cp[c.getAttribute('id')] = { bold:!!desc(c, 'bold').length, size:(+c.getAttribute('height') || 0) / 100 }; }
+  const secs = Object.keys(zip.files).filter(k => /^Contents\/section\d+\.xml$/i.test(k)).sort((a,b) => (+a.match(/\d+/)[0]) - (+b.match(/\d+/)[0]));
+  let page = 1; const pages = [{ n:1, blocks:[] }]; const cur = () => pages[pages.length - 1];
+  const own = (t, p) => [...ancestors(t)].find(a => a.localName === 'p') === p;
+  const ptxt = p => desc(p, 't').filter(t => own(t, p)).map(t => t.textContent).join('').replace(/\s+/g, ' ').trim();
+  const pinfo = p => { const runs = kids(p, 'run').filter(r => desc(r, 't').some(t => t.textContent.trim())); const st = runs.map(r => cp[r.getAttribute('charPrIDRef')] || {});
+    return { bold:st.length > 0 && st.every(x => x.bold), size:Math.max(0, ...st.map(x => x.size || 0)), lvl:0 }; };
+  for(const k of secs){
+    const doc = parseXml(await zip.file(k).async('string'));
+    const walk = el => { for(const c of el.children){
+      if(c.localName === 'tbl'){ const rows = kids(c, 'tr').map(tr => { const out = []; for(const tc of kids(tr, 'tc')){ const ad = desc(tc, 'cellAddr')[0]; const col = ad ? +ad.getAttribute('colAddr') : out.length; out[col] = desc(tc, 'p').map(ptxt).filter(Boolean).join(' '); } return Array.from(out, v => v || ''); }).filter(r => r.some(Boolean)); if(rows.length) cur().blocks.push({ k:'table', rows }); }
+      else if(c.localName === 'p'){ if(c.getAttribute('pageBreak') === '1' && cur().blocks.length){ page++; pages.push({ n:page, blocks:[] }); }
+        if(desc(c, 'tbl').length) walk(c); else { const t = ptxt(c); if(t) cur().blocks.push({ k:'p', text:t, ...pinfo(c) }); } }
+      else walk(c); } };
+    walk(doc.documentElement);
+  }
+  return pages.filter(p => p.blocks.length);
+}
 // ───────────── 과업지시서: 평가 항목·배점과 제약 조항
 const CON_KINDS = {
   font_min:{ name:'본문 최소 글자 크기', unit:'pt', num:true }, font_min_figure:{ name:'표·그림 최소 글자 크기', unit:'pt', num:true },
@@ -362,6 +401,15 @@ function locks(){
 async function parseManuscript(file){
   const ext = extOf(file);
   if(ext === 'pptx') return parseMsPptx(file);
+  // DOCX·HWPX·HWP: 표와 문단 서식을 살려서 읽음(표가 칸마다 한 줄로 풀리지 않게)
+  if(ext === 'docx' || ext === 'hwpx' || ext === 'hwp'){
+    const raw = ext === 'docx' ? await msDocxBlocks(file) : ext === 'hwpx' ? await msHwpxBlocks(file) : (await readHwpBin(file)).pages.map(p => ({ n:p.n, blocks:p.blocks }));
+    const pages = raw.map((p, i) => { const bl = [...p.blocks]; let title = ''; let srcLine = null;
+      const fi = bl.findIndex(b => b.k === 'p'); if(fi === 0 && bl.length > 1 && bl[0].text.length <= 50 && !ITEM_MK.test(bl[0].text) && !SUB_MK.test(bl[0].text)) title = bl.shift().text;
+      const li = bl.length - 1; if(li >= 0 && bl[li].k === 'p' && /^\s*(자료|출처|※\s*자료|※\s*출처)\s*[:：]/.test(bl[li].text)){ srcLine = bl.pop().text.replace(/^\s*※\s*/, ''); }
+      return { n:i + 1, title, src:srcLine, blocks:bl, pics:[] }; });
+    return finishMs(file.name, ext, { w:595.28, h:841.89 }, pages);
+  }
   let src;
   if(ext === 'docx') src = await parseDocx(file); else if(ext === 'hwpx') src = await parseHwpx(file);
   else if(ext === 'pdf') src = await parsePdfSource(file); else if(ext === 'txt' || ext === 'md') src = await parseTxt(file);
@@ -473,7 +521,8 @@ function slideToPage(n, shapes, W, H){
 }
 // 문단 → 소제목 묶음(□ 머리 + ○ 항목 + - 세부)
 function structure(pg){
-  const subs = []; let cur = null, lead = [], concs = [];
+  const subs = []; let cur = null, lead = [], concs = []; let lastLead = false;
+  const SENT_END = /([.。!?…]|[함다음됨임요]\.?|[)）]\.)$/;
   const open = head => { cur = { head, items:[], tables:[] }; subs.push(cur); };
   const bl = pg.blocks;
   for(let i=0;i<bl.length;i++){
@@ -485,15 +534,21 @@ function structure(pg){
     if(concs.length && SUB_MK.test(t)){ concs[concs.length - 1] += ' — ' + stripMk(t); continue; }
     const mk = (b.bu && b.bu !== '#') ? b.bu : (t.match(/^\s*(\S)/) || [])[1];
     const isHead = HEAD_MK.test(t) || (b.bu && /[□■◆◇▣◈▶►]/.test(b.bu)) || (!ITEM_MK.test(t) && !SUB_MK.test(t) && !NOTE_MK.test(t) && b.lvl === 0 && t.length <= 44 && nx && nx.k === 'p' && (ITEM_MK.test(nx.text) || SUB_MK.test(nx.text) || nx.lvl > 0) && !/[.다]$/.test(t));
-    if(isHead){ open(stripMk(t)); continue; }
+    // 기호 없는 원고: 짧고 문장으로 끝나지 않는 줄이 본문·표 앞에 오면 소제목(제목 스타일·굵게·번호 1. 가. 도 소제목)
+    const plainLine = !ITEM_MK.test(t) && !SUB_MK.test(t) && !NOTE_MK.test(t) && !CONC_MK.test(t) && !b.bu;
+    const shortHead = plainLine && t.length <= 40 && !SENT_END.test(t.trim()) && !/[:：]$/.test(t.trim());
+    const topLead = !subs.length && lastLead && lead.length < 2;
+    const isHead2 = !isHead && shortHead && (b.head || b.bold || /^\s*(\d{1,2}|[가-하])[.)]\s*\S/.test(t) || (!topLead && nx && (nx.k === 'table' || (nx.k === 'p' && nx.text.length >= t.length + 12))));
+    if(isHead || isHead2){ open(stripMk(t)); lastLead = false; continue; }
     let lvl = ITEM_MK.test(t) || (b.bu && /[○●◦•▪]/.test(b.bu)) ? 1 : SUB_MK.test(t) || (b.bu && /[\-–·∙ㆍ]/.test(b.bu)) ? 2 : NOTE_MK.test(t) ? 3 : (b.lvl > 0 ? Math.min(2, b.lvl) : 1);
     const text = NOTE_MK.test(t) ? t.trim() : stripMk(t);
     if(!text) continue;
     // 헤드 메시지: 첫 소제목 앞의 기호 없는 문장(10자 이상)
-    if(!cur && lvl === 1 && !ITEM_MK.test(t) && !SUB_MK.test(t) && !NOTE_MK.test(t) && !b.bu && t.length >= 10 && !subs.length && lead.length < 2){ lead.push(text); continue; }
+    if(!cur && lvl === 1 && !ITEM_MK.test(t) && !SUB_MK.test(t) && !NOTE_MK.test(t) && !b.bu && t.length >= 10 && !subs.length && lead.length < 2 && t.length <= 90){ lead.push(text); lastLead = true; continue; }
+    lastLead = false;
     if(!cur) open(null);
     if(lvl === 2 && cur.items.length && !cur.items[cur.items.length-1].note){ (cur.items[cur.items.length-1].kids ||= []).push({ text, note:false }); }
-    else cur.items.push({ text, kids:[], note:lvl === 3, num:b.bu === '#' });
+    else cur.items.push({ text, kids:[], note:lvl === 3, num:b.bu === '#', plain:plainLine && lvl === 1 });
     void mk;
   }
   return { lead, subs:subs.filter(s => s.head || s.items.length || s.tables.length), conc:concs[0] || null, concs };

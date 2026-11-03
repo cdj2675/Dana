@@ -11,7 +11,7 @@ const stageOf = k => STAGES.find(s => s.steps.includes(k)) || STAGES[0];
 const stageDone = st => st.gate ? D.gates['g' + st.gate] : !!D.review.exported;
 const DZ = () => $('#modeDesign');
 const PV = new Map();
-const KIND_NAME = { diagram:'도식형', card:'카드형', table:'표형' };
+const KIND_NAME = { diagram:'도식형', card:'카드형', table:'표형', number:'수치형', compare:'비교형', text:'글 위주' };
 function canGo(k){ if(k === 1) return true; if(k === 2) return !!D.ms; if(k <= 4) return D.gates.g1; if(k === 5) return D.gates.g2; if(k >= 6) return D.gates.g3; return false; }
 function go(k){ k = k === 3 ? 4 : k === 7 ? 6 : k; if(!canGo(k)) return; D.step = k; renderDesign(); DZ().scrollIntoView({ behavior:'smooth', block:'start' }); if(k === 4 && !D.mapping) runMapping(); if(k === 6 && !D.gen.running && !Object.keys(D.pages).length) generateAll(); }
 function busy(text, frac){ D.busy = text ? { text, frac } : null; const b = $('#dBusy'); if(!b) return; b.hidden = !text; if(text){ b.querySelector('.t').textContent = text; b.querySelector('.progress i').style.width = Math.round((frac || 0) * 100) + '%'; } }
@@ -255,22 +255,27 @@ function P4(){
 }
 
 // ── 5 샘플 3쪽 A/B
+// 시안 샘플: 형식이 서로 다른 쪽을 고름(도식·표·카드·수치·비교·글 위주 순), 같은 형식 안에서는 배점 밀도가 높은 쪽. 3~4쪽
+function sampleSig(n){ const ids = patternsFor(n); const pg = msPage(n);
+  if(ids.some(id => ['flow', 'cycle', 'hub', 'timeline'].includes(id))) return 'diagram'; if(ids.includes('vs')) return 'compare'; if(ids.includes('kpi')) return 'number';
+  if(ids.some(id => id === 'table' || id === 'ltable') || pg.st.subs.some(s => s.tables.length)) return 'table'; if(ids.includes('cards')) return 'card'; return 'text'; }
 function pickSamples(){
   const A = D._an = analysis(); const order = [...A.secs].sort((a, b) => b.density - a.density || a.pages[0] - b.pages[0]);
-  const pages = order.flatMap(s => s.pages); const out = []; const used = new Set();
-  for(const kind of ['diagram', 'card', 'table']){ const n = pages.find(p => !used.has(p) && pageKind(p) === kind); if(n){ used.add(n); out.push({ n, kind }); } }
-  for(const n of pages){ if(out.length >= 3) break; if(!used.has(n)){ used.add(n); out.push({ n, kind:pageKind(n) }); } }
-  return out.slice(0, 3).map(s => ({ ...s, pick:'A' }));
+  const pages = order.flatMap(s => s.pages).filter(n => !msPage(n)?.divider); const out = []; const used = new Set();
+  for(const sig of ['diagram', 'table', 'card', 'number', 'compare', 'text']){ if(out.length >= 4) break; const n = pages.find(p => !used.has(p) && sampleSig(p) === sig); if(n){ used.add(n); out.push({ n, kind:sig }); } }
+  for(const n of pages){ if(out.length >= 3) break; if(!used.has(n)){ used.add(n); out.push({ n, kind:sampleSig(n) }); } }
+  return out.map(s => ({ ...s, pick:'A' }));
 }
 function P5(){
   if(!D.samples.length) D.samples = pickSamples();
   const g3 = D.gates.g3;
-  return `<section class="dpanel">${phead('시안 고르기', `${WT()} 높은 절에서 유형이 다른 3쪽을 두 가지로 그렸습니다. 쪽마다 마음에 드는 쪽을 누르세요. 권장안이 미리 골라져 있어 그대로 확정해도 됩니다.`)}
+  return `<section class="dpanel">${phead('시안 고르기', `형식이 서로 다른 ${D.samples.length}쪽(${[...new Set(D.samples.map(x => KIND_NAME[x.kind]))].join('·')})을 두 가지 스타일로 그렸습니다. 쪽마다 마음에 드는 쪽을 누르세요. 권장안이 미리 골라져 있어 그대로 확정해도 됩니다.`)}
     <div class="ab">${D.samples.map((s, i) => { const pg = msPage(s.n); return `<div class="abrow"><div class="abh"><b>샘플 ${i + 1} · ${s.n}쪽</b><span class="tag t-pdf">${KIND_NAME[s.kind]}</span><span class="muted" style="font-size:12.5px">${esc(pg.title)}</span></div>
       <div class="abpair">${['A', 'B'].map(v => `<button type="button" data-act="pick" data-i="${i}" data-v="${v}" aria-pressed="${s.pick === v}"><div class="pv"><img alt="${s.n}쪽 ${v}안" data-pv="ab:${s.n}:${v}"></div><div class="cap"><b>${v}안</b>${v === 'A' ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${v === 'A' ? styleDesc(STYLE_A, s.kind) : styleDesc(STYLE_B, s.kind)}</span></div></button>`).join('')}</div></div>`; }).join('')}</div>
     ${foot(g3 ? `스타일 확정됨 · 디자인 가이드 v${esc(D.guide.version)}` : '확정하면 고른 스타일로 모든 쪽을 만들고 4단계 전체 생성으로 넘어갑니다.', g3 ? `<button type="button" class="primary big" data-act="go" data-k="6">다음: 전체 생성 →</button>` : gateBtn(3, '이 스타일로 확정'))}</section>`;
 }
-function styleDesc(st, kind){ const A = st === STYLE_A; return kind === 'table' ? (A ? '진한 머리행 표 · 테두리 카드' : '연한 머리행·줄무늬 표 · 색 채운 카드') : kind === 'diagram' ? (A ? '화살표 흐름 · 원형 허브' : '번호 원 흐름 · 색 채운 상자') : (A ? '테두리 카드 · 소제목 밑줄' : '색 채운 카드 · 소제목 띠'); }
+function styleDesc(st, kind){ const A = st === STYLE_A; const sub = A ? '막대 소제목' : '번호(01) 소제목';
+  return kind === 'table' ? `${sub} · ${A ? '흰 머리 행·가로줄 표' : '색 머리 행·세로줄 표'}` : kind === 'diagram' ? `${sub} · ${A ? '쉐브론 단계' : '번호 원 + 상자 단계'}` : `${sub} · ${A ? '테두리 카드' : '색 채운 카드'}`; }
 function styleFromSamples(){
   const st = { ...STYLE_A }; const vote = { A:0, B:0 };
   for(const s of D.samples){ vote[s.pick]++; const B = s.pick === 'B' ? 'B' : 'A';
