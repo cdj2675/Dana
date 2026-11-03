@@ -2,11 +2,11 @@
 // ═════════════════════════════ 디자인 모드 · 디자인 시스템과 쪽 배치
 // ───────────── 내장 무드 3개
 const MOODS = {
-  navy:{ name:'공공 네이비', primary:'#1F3A68', point:'#2E7BC4', accent:'#E0782B', ink:'#1D232B', ink2:'#4B5562', header:'band', icon:'dark',
+  navy:{ name:'공공 네이비', primary:'#1F3A68', point:'#2E7BC4', accent:'#E0782B', ink:'#1D232B', ink2:'#4B5562', header:'panel', icon:'light',
     primaries:['#1F3A68','#23497F','#173054','#2D4A7A','#0F4C81','#3B4F7A'], accents:['#E0782B','#D9A21B','#C8402E','#2E9C7A','#7A4FB5','#2E7BC4'] },
-  green:{ name:'그린', primary:'#1E6B52', point:'#3C9E7A', accent:'#D98A22', ink:'#1B2621', ink2:'#4A5750', header:'tag', icon:'dark',
+  green:{ name:'그린', primary:'#1E6B52', point:'#3C9E7A', accent:'#D98A22', ink:'#1B2621', ink2:'#4A5750', header:'plain', icon:'light',
     primaries:['#1E6B52','#24745A','#2F7D4F','#16594A','#3A7A3A','#1F6F6B'], accents:['#D98A22','#E0782B','#C8402E','#2E7BC4','#B8962E','#7A4FB5'] },
-  mono:{ name:'모노', primary:'#2E3338', point:'#5C6670', accent:'#C8372D', ink:'#1A1D20', ink2:'#50575E', header:'rule', icon:'light',
+  mono:{ name:'모노', primary:'#2E3338', point:'#5C6670', accent:'#C8372D', ink:'#1A1D20', ink2:'#50575E', header:'line', icon:'light',
     primaries:['#2E3338','#3A3F45','#1F2328','#44494F','#2B3440','#3B3B3B'], accents:['#C8372D','#E0782B','#2E7BC4','#1E8A5A','#D9A21B','#7A4FB5'] },
 };
 const STYLE_A = { sub:'A', card:'A', table:'A', flow:'A', hub:'A', kpi:'A', timeline:'A', vs:'A' };
@@ -19,7 +19,7 @@ function tokens(over){
   const body = Math.max(11, L.bodyMin || 0), fig = Math.max(9, L.figMin || L.bodyMin || 0);   // 표·그림 하한이 따로 없으면 본문 하한을 모든 글자에
   const c = { p0:mix(prim, '#000000', .28), p1:prim, p2:mix(prim, '#FFFFFF', .88), p3:mix(prim, '#FFFFFF', .55), bg:'#FFFFFF', bg2:mix(prim, '#FFFFFF', .95),
     line:mix(prim, '#FFFFFF', .7), point:prim !== m.primary ? mix(prim, '#FFFFFF', .3) : m.point, accent:acc, ink:m.ink, ink2:m.ink2, white:'#FFFFFF',
-    page:m.header === 'band' ? mix(prim, '#FFFFFF', .955) : '#FFFFFF', note:mix(prim, '#FFFFFF', .9), gray:mix(m.ink, '#FFFFFF', .92), thead:mix(prim, '#FFFFFF', .9), shadow:mix(m.ink, '#FFFFFF', .86), accL:mix(acc, '#FFFFFF', .3) };
+    page:'#FFFFFF', note:mix(prim, '#FFFFFF', .9), gray:mix(m.ink, '#FFFFFF', .92), thead:mix(prim, '#FFFFFF', .9), shadow:mix(m.ink, '#FFFFFF', .86), accL:mix(acc, '#FFFFFF', .3) };
   c.onP1 = contrast('#FFFFFF', prim) >= 4.5 ? '#FFFFFF' : m.ink;
   return { mood:over?.mood || D.mood, moodName:m.name, header:m.header, iconTone:m.icon, grid:G,
     size:{ title:body + 7, sub:body + 2.5, msg:body + 3.5, body, table:Math.max(fig, 10.5), caption:Math.max(fig, 9), head:Math.max(fig, 11), evalNo:Math.max(fig, 15), kpi:Math.max(24, body * 2), pno:Math.max(fig, 9.5) },
@@ -198,6 +198,10 @@ function autoPatterns(){
       if(PATTERNS[pick.id].big) big = true;
       ids.push(pick.id);
     });
+    // 완성도: 쪽에 표·사진이 없고 모두 불릿이면, 도식 후보가 있는 소제목 하나를 도식으로
+    if(!pg.pics.length && !subs.some(s => s.tables.length) && ids.every(id => id === 'list')){
+      let bi = -1, bs = 0, bid = null; subs.forEach((s, i) => { const c = patCandidates(s).find(c => c.id !== 'list'); if(c && c.score > bs){ bs = c.score; bi = i; bid = c.id; } });
+      if(bi >= 0) ids[bi] = bid; }
     const dom = ids.find(id => PATTERNS[id]?.big) || ids.find(id => id !== 'list') || 'list';
     if(hist.length >= 2 && hist[hist.length-1] === dom && hist[hist.length-2] === dom && dom !== 'list' && dom !== 'table'){
       const k = ids.indexOf(dom); const cs = patCandidates(subs[k]); const alt = cs.find(c => c.id !== dom && (!PATTERNS[c.id].big || !ids.some((x, j) => j !== k && PATTERNS[x]?.big)));
@@ -213,31 +217,26 @@ function pageKind(n){ const ids = patternsFor(n); if(ids.some(id => PATTERNS[id]
 
 // ───────────── 쪽 배치: 블록을 쌓고, 남는 높이를 나눠 본문 끝선까지 채움
 function makeCtx(tk, style, level){
-  const fs = tk.size.body; const lhm = level >= 4 ? 1.38 : level >= 2 ? 1.48 : 1.6;
-  return { tk, st:style, c:tk.color, fs, lh:fs * lhm, lhm, level, tf:tk.size.table, cf:tk.size.caption, r:tk.r,
-    pad:level >= 2 ? 8 : 11, gap:level >= 1 ? 8 : 10, useIcons:level < 2 };
+  // level < 0 = 여유 배치(원고가 짧은 쪽): 줄 간격·상자 안 여백·간격을 조금씩 넓힘(상자를 비우며 늘리지는 않음)
+  const fs = tk.size.body; const air = Math.max(0, -level); const lhm = level >= 4 ? 1.38 : level >= 2 ? 1.48 : 1.6 + .07 * air;
+  return { tk, st:style, c:tk.color, fs, lh:fs * lhm, lhm, level, air, tf:tk.size.table, cf:tk.size.caption, r:tk.r,
+    pad:level >= 2 ? 8 : 11 + 2 * air, gap:level >= 1 ? 8 : 10 + 2 * air, useIcons:level < 2 };
 }
-// 소제목: A = 두 톤 사각 칩 + 굵은 글자, B = 번호(1. 2.) + 굵은 글자. 밑줄 없이 위 간격으로 구분
+// 소제목: A = 세로 막대 + 굵은 글자, B = 두 자리 번호(01) + 굵은 글자
 function blkSubtitle(text, C, W, num){
-  const sz = C.tk.size.sub, A = C.st.sub !== 'B'; const pre = !A && num ? `${num}. ` : '';
-  const ind = A ? 17 : 0; const lines = wrap(pre + text, W - ind, 'title', 700, sz); const lh = sz * 1.38, th = lines.length * lh;
+  const sz = C.tk.size.sub, A = C.st.sub !== 'B' || !num; const ind = A ? 11 : 26;
+  const lines = wrap(text, W - ind, 'title', 700, sz); const lh = sz * 1.38, th = lines.length * lh;
   return { kind:'sub', h:th + 1, stretch:0, draw:(x, y) => A
-    ? [E.rect(x, y + (lh - 11) / 2, 11, 11, { fill:C.c.p1, r:2.5 }), E.rect(x + 5.5, y + (lh - 11) / 2 + 5.5, 5.5, 5.5, { fill:C.c.accent, r:1 }), T(lines, x + ind, y, W - ind, { size:sz, weight:700, role:'title', color:C.c.ink, lh })]
-    : [T(lines, x, y, W, { size:sz, weight:700, role:'title', color:C.c.ink, lh })] };
+    ? [E.rect(x, y + lh * .2, 3.5, lh * .6, { fill:C.c.p1, r:1.5 }), T(lines, x + ind, y, W - ind, { size:sz, weight:700, role:'title', color:C.c.ink, lh })]
+    : [T([String(num).padStart(2, '0')], x, y, 24, { size:sz, weight:700, role:'num', color:C.c.p1, lh, skip:true }), T(lines, x + ind, y, W - ind, { size:sz, weight:700, role:'title', color:C.c.ink, lh })] };
 }
-// 헤드 메시지: 이 쪽의 주장 한두 줄. 머리틀 바로 아래 고정
+// 헤드 메시지: 머리틀 바로 아래, 옅은 바탕 + 왼쪽 굵은 선 + 굵은 문장(왼쪽 정렬)
 function blkHeadMsg(texts, C, W){
-  const sz = C.tk.size.msg, lh = sz * 1.45, hd = C.tk.header; const pad = hd === 'rule' ? 9 : 13, padX = 22;
-  const center = hd === 'tag'; const lines = texts.flatMap(t => wrap(t, W - padX * 2, 'title', 700, sz)); const h = lines.length * lh + pad * 2;
-  return { kind:'msg', h:h + (hd === 'tag' ? 3 : 0), stretch:0, draw:(x, y) => {
-    const tx = T(lines, x + padX, y + pad, W - padX * 2, { size:sz, weight:700, role:'title', color:C.c.p0, lh, align:center ? 'center' : 'left' });
-    if(hd === 'tag') return [E.rect(x + 3, y + 3, W, h, { fill:C.c.shadow, r:6 }), E.rect(x, y, W, h, { fill:'#FFFFFF', stroke:C.c.line, sw:.8, r:6 }),
-      E.rect(x, y + 6, 3.5, h * .55, { fill:C.c.p1 }), E.rect(x + 6, y, W * .22, 3, { fill:C.c.p1 }), E.rect(x + W * .58, y + h - 3, W * .42 - 6, 3, { fill:C.c.point }), tx];
-    if(hd === 'band') return [E.rect(x, y, W, h, { fill:'#FFFFFF', stroke:C.c.line, sw:.6, r:8 }), E.rect(x, y + 8, 4, h - 16, { fill:C.c.accent, r:2 }), tx];
-    return [E.line(x, y, x + W, y, { stroke:C.c.ink, sw:1.2 }), E.line(x, y + h, x + W, y + h, { stroke:C.c.line, sw:.75 }), tx];
-  } };
+  const sz = C.tk.size.msg, lh = sz * 1.45; const pad = 12 + 2 * (C.air || 0), padL = 20, padR = 16;
+  const lines = texts.flatMap(t => wrap(t, W - padL - padR, 'title', 700, sz)); const h = lines.length * lh + pad * 2;
+  return { kind:'msg', h, stretch:0, draw:(x, y) => [E.rect(x, y, W, h, { fill:C.c.bg2 }), E.rect(x, y, 4.5, h, { fill:C.c.p1 }),
+    T(lines, x + padL, y + pad, W - padL - padR, { size:sz, weight:700, role:'title', color:C.c.p0, lh })] };
 }
-// ※ 참고 문단 묶음: 옅은 상자 + 점
 function blkNotes(notes, C, W){
   const pad = 11, ind = 11; const rows = notes.map(n => wrap(n.text.replace(/^\s*※\s*/, ''), W - pad * 2 - ind, 'body', 400, C.fs));
   const h = rows.reduce((a, l) => a + l.length * C.lh, 0) + 5 * (rows.length - 1) + pad * 2;
@@ -245,16 +244,15 @@ function blkNotes(notes, C, W){
     for(const l of rows){ out.push(E.ell(x + pad + 1, yy + C.lh / 2 - 1.6, 3.2, 3.2, { fill:C.c.ink2 })); out.push(T(l, x + pad + ind, yy, W - pad * 2 - ind, { size:C.fs, color:C.c.ink, lh:C.lh })); yy += l.length * C.lh + 5; }
     return out; } };
 }
-// ⇒ 결론: 한 줄이면 강조 상자, 여러 줄이면 「핵심 실행 사항」 제목 막대 + 점 목록
+// ⇒ 핵심 실행 사항: 왼쪽 세로 꼬리표(핵심 실행) + 오른쪽 목록. 한 줄이면 굵게
 function blkConc(concs, C, W){
-  const pad = 12;
-  if(concs.length === 1){ const sz = C.fs + 1.5, lh = sz * 1.5; const lines = wrap(concs[0], W - pad * 2 - 8, 'title', 700, sz); const h = lines.length * lh + pad * 2;
-    return { kind:'conc', h, stretch:0, draw:(x, y) => [E.rect(x, y, W, h, { fill:'#FFFFFF', stroke:C.c.line, sw:.8, r:6 }), E.rect(x, y + 7, 4, h - 14, { fill:C.c.p1, r:2 }), T(lines, x + pad + 8, y + pad, W - pad * 2 - 8, { size:sz, weight:700, role:'title', color:C.c.p0, lh })] }; }
-  const bar = 23, ind = 11; const rows = concs.map(t => wrap(t, W - pad * 2 - ind, 'body', 500, C.fs)); const bodyH = rows.reduce((a, l) => a + l.length * C.lh, 0) + 4 * (rows.length - 1) + pad * 2;
-  const ts = C.tk.size.sub - 1; const h = bar + bodyH;
-  return { kind:'conc', h, stretch:0, draw:(x, y) => { const out = [E.rect(x, y + bar - 6, W, bodyH + 6, { fill:'#FFFFFF', stroke:C.c.line, sw:.8, r:6 }), E.rect(x, y, W, bar, { fill:C.c.p1, r:6 }),
-      T(['핵심 실행 사항'], x, y + (bar - ts * 1.3) / 2, W, { size:ts, weight:700, role:'title', color:C.c.onP1, lh:ts * 1.3, align:'center', skip:true })]; let yy = y + bar + pad - 2;
-    for(const l of rows){ out.push(E.ell(x + pad + 1, yy + C.lh / 2 - 2.2, 4.4, 4.4, { fill:C.c.p1 })); out.push(T(l, x + pad + ind, yy, W - pad * 2 - ind, { size:C.fs, weight:500, color:C.c.ink, lh:C.lh })); yy += l.length * C.lh + 4; }
+  const pad = 12, lab = 54, ind = 11; const one = concs.length === 1; const sz = one ? C.fs + 1 : C.fs, lh = one ? sz * 1.5 : C.lh;
+  const tW = W - lab - pad * 2 - (one ? 0 : ind); const rows = concs.map(t => wrap(t, tW, one ? 'title' : 'body', one ? 700 : 500, sz));
+  const h = Math.max(46, rows.reduce((a, l) => a + l.length * lh, 0) + 4 * (rows.length - 1) + pad * 2); const ls = C.fs, llh = ls * 1.3;
+  return { kind:'conc', h, stretch:0, draw:(x, y) => { const out = [E.rect(x, y, W, h, { fill:'#FFFFFF', stroke:C.c.p1, sw:1 }), E.rect(x, y, lab, h, { fill:C.c.p1 }),
+      T(['핵심', '실행'], x, y + (h - llh * 2) / 2, lab, { size:ls, weight:700, role:'title', color:C.c.onP1, lh:llh, align:'center', skip:true })];
+    let yy = y + (h - (rows.reduce((a, l) => a + l.length * lh, 0) + 4 * (rows.length - 1))) / 2; const tx = x + lab + pad;
+    for(const l of rows){ if(!one) out.push(E.rect(tx + 1, yy + lh / 2 - 2, 4, 4, { fill:C.c.p1 })); out.push(T(l, tx + (one ? 0 : ind), yy, tW, { size:sz, weight:one ? 700 : 500, role:one ? 'title' : 'body', color:one ? C.c.p0 : C.c.ink, lh })); yy += l.length * lh + 4; }
     return out; } };
 }
 function blkList(items, C, W){
@@ -264,7 +262,7 @@ function blkList(items, C, W){
     rows.push({ k:note ? 'note' : 'item', lines:wrap(it.text, W - (note ? 0 : ind), 'body', 400, sz), sz });
     for(const k of (it.kids || [])) rows.push({ k:k.note ? 'note' : 'kid', lines:wrap(k.text, W - kidInd, 'body', 400, k.note ? Math.max(C.cf, C.fs - 1) : C.fs), sz:k.note ? Math.max(C.cf, C.fs - 1) : C.fs });
   }
-  const g = 4; const nat = rows.reduce((a, r) => a + r.lines.length * (r.sz === C.fs ? C.lh : r.sz * 1.5), 0) + g * Math.max(0, rows.length - 1);
+  const g = 4 + 2 * (C.air || 0); const nat = rows.reduce((a, r) => a + r.lines.length * (r.sz === C.fs ? C.lh : r.sz * 1.5), 0) + g * Math.max(0, rows.length - 1);
   return { kind:'list', h:nat, stretch:Math.max(0, rows.length - 1) * 10, draw:(x, y, _w, ex = 0) => {
     const out = []; const gg = g + (rows.length > 1 ? ex / (rows.length - 1) : 0); let yy = y;
     for(const r of rows){ const lh = r.sz === C.fs ? C.lh : r.sz * 1.5;
@@ -278,7 +276,7 @@ function splitTitle(t){ const m = t.match(/^(.{2,22}?)(?<!\d)\s*[:：]\s*(?!\d)(
 const check = (x, y, c) => [E.line(x, y + 3.2, x + 2.6, y + 5.8, { stroke:c, sw:1.4 }), E.line(x + 2.6, y + 5.8, x + 7.4, y, { stroke:c, sw:1.4 })];
 function blkCards(items, C, W){
   const its = items.filter(i => !i.note); const n = its.length; const cols = n <= 2 ? n : n === 4 ? 2 : 3; const gap = 10;
-  const cw = (W - gap * (cols - 1)) / cols, pad = 12, A = C.st.card !== 'B';
+  const cw = (W - gap * (cols - 1)) / cols, pad = 12 + 2 * (C.air || 0), A = C.st.card !== 'B';
   const parts = its.map(i => ({ ...splitTitle(i.text), kids:i.kids || [], topic:topicOf(i.text) }));
   const icons = C.useIcons && parts.filter(p => p.topic).length >= Math.ceil(n / 2); const isz = 24; const ts = C.fs + 1;
   const cards = parts.map(p => {
@@ -299,7 +297,7 @@ function blkCards(items, C, W){
       r.forEach((c, ci) => { const cx = x + off + ci * (cw + gap);
         out.push(A ? E.rect(cx, yy, cw, h, { fill:'#FFFFFF', stroke:C.c.line, sw:.8, r:7 }) : E.rect(cx, yy, cw, h, { fill:C.c.note, r:7 }));
         let ty = yy + pad;
-        if(icons) out.push(E.icon(cx + pad, ty, isz, iconFor(c.topic || '목표'), { tone:'dark' }));
+        if(icons) out.push(E.icon(cx + pad, ty, isz, iconFor(c.topic || '목표'), { tone:C.tk.iconTone }));
         if(c.tl.length) out.push(T(c.tl, cx + c.tx, ty + (c.headH - c.tl.length * ts * 1.35) / 2, cw - c.tx - pad, { size:ts, weight:700, role:'title', color:C.c.ink, lh:ts * 1.35 }));
         ty += c.headH;
         if(c.dl.length){ ty += c.headH ? 7 : 0; out.push(T(c.dl, cx + pad, ty, cw - pad * 2, { size:C.fs, color:C.c.ink, lh:C.lh })); ty += c.dl.length * C.lh; }
@@ -401,7 +399,7 @@ function blkKpi(k, C, W){
 }
 function tableModel(rows, C, W, labelMode){
   const ncol = Math.max(...rows.map(r => r.length)); const R = rows.map(r => Array.from({ length:ncol }, (_, i) => String(r[i] ?? '')));
-  const fs = C.tf, lh = fs * 1.42, px = 7, py = labelMode ? 6.5 : 5.5;
+  const fs = C.tf, lh = fs * 1.42, px = 7, py = (labelMode ? 6.5 : 5.5) + 2 * (C.air || 0);
   const head = !labelMode && R.length > 1 && R[0].every(c => c.length <= 20 && !/\d{3,}/.test(c)) && R[0].some(Boolean);
   // 머리가 있고 첫 열이 짧은 이름들이면 첫 열을 라벨 열로(회색·굵게)
   const labCol = labelMode || (head && ncol >= 2 && R.slice(1).every(r => r[0].length <= 12));
@@ -421,7 +419,7 @@ function blkTable(rows, C, W, labelMode){
   return { kind:'table', h:nat, stretch:0, draw:(x, y) => {
     const cells = M.cells.map((r, ri) => r.map((c, ci) => {
       const isHead = M.head && ri === 0, isLab = M.labCol && ci === 0 && !isHead;
-      const fill = isHead ? (A ? C.c.thead : C.c.p1) : isLab ? (A ? C.c.gray : C.c.p2) : '#FFFFFF';
+      const fill = isHead ? (A ? '#FFFFFF' : C.c.p1) : isLab ? (A ? C.c.gray : C.c.p2) : '#FFFFFF';
       const color = isHead ? (A ? C.c.p0 : C.c.onP1) : isLab ? C.c.ink : C.c.ink;
       return { lines:c.lines, text:c.text, weight:c.wt, color, fill, align:isHead || c.num ? 'center' : 'left' }; }));
     return [{ t:'table', x, y, colW:M.cw, rowH:M.rh, cells, size:M.fs, lh:M.lh, px:M.px, line:C.c.line, edge:C.c.p1, vlines:!A, headRule:A && M.head }]; } };
@@ -464,7 +462,7 @@ function blkPhotos(pics, C, W){
     return { kind:'photo', h:ph, stretch:0, draw:(x, y) => { const out = [E.img(x, y, pw, ph, { src:p.url, pic:p, r:C.r, stroke:C.c.line })];
       if(cl.length){ out.push(E.line(x + pw + 12, y + ph - cl.length * cs * 1.45 - 6, x + pw + 40, y + ph - cl.length * cs * 1.45 - 6, { stroke:C.c.p1, sw:1.5 })); out.push(T(cl, x + pw + 12, y + ph - cl.length * cs * 1.45, W - pw - 14, { size:cs, color:C.c.ink2, lh:cs * 1.45 })); }
       return out; } }; }
-  const pw = (W - gap * (k - 1)) / k; const ph = Math.min(...ps.map(p => pw * (p.h / p.w || .62)), 170);
+  const pw = (W - gap * (k - 1)) / k; const ph = Math.min(...ps.map(p => pw * (p.h / p.w || .62)), 170 + 30 * (C.air || 0));
   const cls = ps.map(p => p.cap ? wrap(p.cap, pw, 'body', 400, cs) : []); const ch = Math.max(0, ...cls.map(l => l.length)) * cs * 1.45;
   return { kind:'photo', h:ph + (ch ? ch + 5 : 0), stretch:0, draw:(x, y) => { const out = [];
     ps.forEach((p, i) => { const px = x + i * (pw + gap); out.push(E.img(px, y, pw, ph, { src:p.url, pic:p, r:C.r, stroke:C.c.line })); if(cls[i].length) out.push(T(cls[i], px, y + ph + 5, pw, { size:cs, color:C.c.ink2, lh:cs * 1.45, align:'center' })); });
@@ -487,6 +485,24 @@ function blocksForSub(sub, pat, C, W, num){
   else if(its.length) out.push(blkList(its, C, W));
   tail(); return out;
 }
+// ───────────── 완성도 기준(최소선): 실제 제출본 2종(엘앤케이비즈 76쪽·금성환경 56쪽)에서 잰 값보다 조금 낮게
+//  본문 세로 사용률: 제출본 10분위 74%·99% → 70% / 구조화 요소 없는 쪽: 제출본 0쪽 → 쪽마다 1개 이상
+//  본문 글자 크기 단계: 엘앤케이비즈 3단계 → 4단계 이하 / 쪽당 원고 글자: 제출본 10분위 580자 → 400자
+const QUALITY = { useTarget:.70, steps:4, chars:400 };
+const QUALITY_ITEMS = [
+  { id:'eval', name:'평가 항목 표시', must:true, when:() => !!(D.rfp?.items.length), ok:m => m.evalOk, fix:'배점 연결에서 이 쪽의 절을 평가 항목에 이으세요.' },
+  { id:'msg', name:'헤드 메시지', must:true, ok:m => m.msg, fix:'원고 첫 줄(소제목 앞)에 이 쪽의 핵심 주장을 한 문장으로 넣으세요.' },
+  { id:'struct', name:'표·도식·사진 1개 이상', must:true, ok:m => m.struct, fix:'원고에 단계(1단계…), 「이름 : 설명」, 표, 사진 중 하나를 넣으면 도식이 됩니다.' },
+  { id:'use', name:'본문 채움 70% 이상', must:true, ok:m => m.use >= QUALITY.useTarget - .005, val:m => `${Math.round(m.use * 100)}%`, fix:'원고 분량을 늘리거나 사진·표를 더하세요(여유 배치까지 적용한 값).' },
+  { id:'steps', name:'글자 크기 4단계 이하', must:false, ok:m => m.steps <= QUALITY.steps, val:m => `${m.steps}단계` },
+  { id:'chars', name:'원고 400자 이상', must:false, ok:m => m.chars >= QUALITY.chars, val:m => `${m.chars}자`, fix:'제출본은 쪽당 600자 안팎입니다. 원고 보강 후보입니다.' },
+];
+function pageQuality(sc, pg){
+  if(pg?.divider) return { items:[], pass:true, score:1 };
+  const items = QUALITY_ITEMS.filter(q => !q.when || q.when()).map(q => ({ id:q.id, name:q.name, must:q.must, ok:!!q.ok(sc.m), val:q.val ? q.val(sc.m) : '', fix:q.fix || '' }));
+  items.push({ id:'fit', name:'넘침 없음·글자 하한', must:true, ok:!sc.overflow && !sc.issues.some(i => i.id === 'font'), val:'', fix:'원고 분량을 줄이세요.' });
+  const must = items.filter(i => i.must); return { items, pass:must.every(i => i.ok), score:items.filter(i => i.ok).length / items.length };
+}
 // 넘칠 때 단계별로 줄이기: 0 기본 → 1 간격 → 2 카드 아이콘·여백 → 3 큰 도식을 카드·표로 → 4 줄 간격
 const COMPACT = { hub:'cards', timeline:'ltable', flow:'flow', cycle:'flow', cards:'list', kpi:'kpi' };
 function composePage(n, opt = {}){
@@ -499,6 +515,11 @@ function composePage(n, opt = {}){
     const r = layoutOnce(pg, tk, style, level, pats, { x0, x1, BW, W, H, G, fontStep:opt.fontStep || 0 });
     best = r; if(!r.overflow) break;
   }
+  // 본문 사용률이 기준(70%)에 못 미치면 여유 배치를 차례로 시도해 넘치지 않는 가장 꽉 찬 배치를 고름
+  if(!best.overflow && best.level === 0 && best.m.use < QUALITY.useTarget && !opt.level){
+    for(const lv of [-1, -2]){ const r = layoutOnce(pg, tk, style, lv, pats0, { x0, x1, BW, W, H, G, fontStep:opt.fontStep || 0 }); if(r.overflow || r.m.use > .97) break; best = r; if(r.m.use >= QUALITY.useTarget) break; }
+  }
+  best.quality = pageQuality(best, pg);
   return best;
 }
 // 이 쪽이 답하는 평가 항목(배점 연결에서): 번호·이름·전체 번호 목록
@@ -506,48 +527,34 @@ function evalOf(pg){
   const items = D.rfp?.items || []; if(!items.length || !D.mapping) return null;
   const idx = items.findIndex(it => (D.mapping[it.id] || []).includes(pg.sec)); if(idx < 0) return null;
   const code = it => it.code || String(items.indexOf(it) + 1); const it = items[idx];
-  return { code:code(it), label:it.name + (it.area && !/부문$/.test(it.area) ? `(${it.area})` : ''), all:items.map(code), cur:code(it) };
+  const total = items.reduce((a, i) => a + (+i.score || 0), 0);
+  return { id:it.id, code:code(it), label:it.name + (it.area && !/부문$/.test(it.area) ? `(${it.area})` : ''), all:items.map(code), cur:code(it), score:+it.score || 0, total, derived:D.rfp?.mode === 'derived', tier:typeof tierOf === 'function' && it.w ? tierOf(it.w) : '' };
 }
-// 머리틀: band(짙은 띠·평가 번호 배지·오른쪽 번호 목록) / tag(평가 꼬리표 + 제목 상자) / rule(꼬리표 + 제목 + 선)
+// 머리틀(Dana): 평가 줄(번호 | 평가 항목 이름 ·· 배점) → 절 제목 → 배점 비중 막대(평가 항목마다 한 칸, 폭 = 배점, 이 쪽 항목만 색)
+//  panel = 머리틀 뒤 옅은 바탕 / plain = 흰 바탕 / line = 무채색 막대
 function headerEls(pg, tk, G, x0, BW, W){
-  const c = tk.color, els = []; const ev = evalOf(pg); const sec = D.ms.sections.find(s => s.id === pg.sec);
-  const label = ev ? ev.label : (sec?.chapterTitle || ''); const hs = tk.size.head;
-  const title = pg.title || ''; let tsz = tk.size.title;
-  if(tk.header === 'band'){
-    const bs = 40, idxW = ev && ev.all.length > 1 && ev.all.length <= 9 ? ev.all.reduce((a, k) => a + Math.max(16, tw(k, 'num', 700, 9) + 10) + 4, 0) : 0;
-    const tx = ev ? x0 + bs + 13 : x0; const tW = x0 + BW - tx - (idxW ? idxW + 14 : 0);
-    let tl = wrap(title, tW, 'title', 700, tsz); if(tl.length > 2){ tsz = tk.size.sub + 1; tl = wrap(title, tW, 'title', 700, tsz); }
-    const tlh = tsz * 1.28, lh2 = hs * 1.35; const blockH = (label ? lh2 + 2 : 0) + tl.length * tlh;
-    const bandH = Math.max(G.bodyTop - 18, G.mt + Math.max(bs, blockH) + 16); const cy = G.mt + (bandH - G.mt) / 2 - 2;
-    els.push(E.rect(-G.bleed, -G.bleed, W + G.bleed * 2, bandH + G.bleed, { fill:c.p0 }));
-    // 오른쪽 위 물결(장식)
-    const pts = []; for(let i = 0; i <= 14; i++){ const t = i / 14; pts.push([W * .6 + (W * .4 + G.bleed) * t, -G.bleed + (bandH * .78 + G.bleed) * Math.pow(t, 1.8)]); } pts.push([W + G.bleed, -G.bleed]);
-    els.push(E.poly(pts, { fill:mix(c.p0, c.p1, .55) }));
-    if(ev){ els.push(E.rect(x0, cy - bs / 2, bs, bs, { fill:c.accent, r:6 })); const cs = ev.code.length > 3 ? tk.size.evalNo - 3 : tk.size.evalNo;
-      els.push(T([ev.code], x0, cy - cs * .65, bs, { size:cs, weight:700, role:'num', color:'#FFFFFF', lh:cs * 1.3, align:'center' })); }
-    let ty = cy - blockH / 2; if(label){ els.push(T([label], tx, ty, tW, { size:hs, weight:700, color:c.accL, lh:lh2 })); ty += lh2 + 2; }
-    els.push(T(tl, tx, ty, tW, { size:tsz, weight:700, role:'title', color:'#FFFFFF', lh:tlh }));
-    if(idxW){ let ix = x0 + BW - idxW; const iy = G.mt - 2;
-      for(const k of ev.all){ const w = Math.max(16, tw(k, 'num', 700, 9) + 10); if(k === ev.cur) els.push(E.rect(ix, iy, w, 16, { fill:c.accent, r:8 }));
-        els.push(T([k], ix, iy + 2, w, { size:9, weight:700, role:'num', color:k === ev.cur ? '#FFFFFF' : c.p3, lh:12, align:'center' })); ix += w + 4; } }
-    return { els, bodyY:Math.max(G.bodyTop, bandH + 20) };
-  }
-  // tag / rule: 평가 꼬리표
-  let y = G.mt; const lh2 = hs * 1.4;
-  if(label){ let lx = x0;
-    if(ev){ const cw = tw(ev.code, 'num', 700, hs) + 12; els.push(E.rect(x0, y, cw, lh2, { fill:c.p1, r:4 })); els.push(T([ev.code], x0, y, cw, { size:hs, weight:700, role:'num', color:'#FFFFFF', lh:lh2, align:'center' })); lx += cw + 7; }
-    els.push(T([label], lx, y, x0 + BW - lx, { size:hs + .5, weight:700, role:'title', color:c.p1, lh:lh2 })); y += lh2 + 12; }
-  if(tk.header === 'tag'){
-    const pad = 9; let tl = wrap(title, BW - 24, 'title', 700, tsz); if(tl.length > 2){ tsz = tk.size.sub + 1; tl = wrap(title, BW - 24, 'title', 700, tsz); }
-    const tlh = tsz * 1.3, h = tl.length * tlh + pad * 2;
-    els.push(E.rect(x0, y, BW, h, { fill:'#FFFFFF', stroke:mix(c.ink, '#FFFFFF', .62), sw:.9 }));
-    els.push(T(tl, x0 + 12, y + pad, BW - 24, { size:tsz, weight:700, role:'title', color:c.p0, lh:tlh }));
-    return { els, bodyY:Math.max(G.bodyTop, y + h + 18) };
-  }
+  const c = tk.color, els = []; const ev = evalOf(pg); const sec = D.ms.sections.find(s => s.id === pg.sec); const hd = tk.header;
+  const label = ev ? ev.label : (sec?.chapterTitle || ''); const hs = tk.size.head; const lh2 = hs * 1.4;
+  const title = pg.title || ''; let tsz = tk.size.title; let y = G.mt;
+  const wTxt = ev ? (ev.derived ? `중요도 ${ev.tier} · ${Math.round(ev.score)}%` : `배점 ${r1(ev.score)}점 / ${r1(ev.total)}점`) : '';
+  const back = []; els.push({ placeholder:true });
+  if(label || ev){ let lx = x0; const ww = wTxt ? tw(wTxt, 'body', 500, hs) + 4 : 0;
+    if(ev){ const cw = tw(ev.code, 'num', 700, hs + 1); els.push(T([ev.code], x0, y, cw + 2, { size:hs + 1, weight:700, role:'num', color:c.p1, lh:lh2 })); lx += cw + 9;
+      els.push(E.line(lx, y + lh2 * .2, lx, y + lh2 * .8, { stroke:c.line, sw:1 })); lx += 9; }
+    els.push(T([label], lx, y, x0 + BW - lx - ww - 8, { size:hs, weight:500, color:c.ink2, lh:lh2 }));
+    if(wTxt) els.push(T([wTxt], x0 + BW - ww, y, ww, { size:hs, weight:500, color:c.ink2, lh:lh2, align:'right' }));
+    y += lh2 + 5; }
   let tl = wrap(title, BW, 'title', 700, tsz); if(tl.length > 2){ tsz = tk.size.sub + 1; tl = wrap(title, BW, 'title', 700, tsz); }
-  const tlh = tsz * 1.3; els.push(T(tl, x0, y, BW, { size:tsz, weight:700, role:'title', color:c.ink, lh:tlh })); y += tl.length * tlh + 6;
-  els.push(E.line(x0, y, x0 + BW, y, { stroke:c.ink, sw:.9 })); els.push(E.rect(x0, y - 1.25, 30, 2.5, { fill:c.accent }));
-  return { els, bodyY:Math.max(G.bodyTop, y + 16) };
+  const tlh = tsz * 1.3; els.push(T(tl, x0, y, BW, { size:tsz, weight:700, role:'title', color:hd === 'line' ? c.ink : c.p0, lh:tlh })); y += tl.length * tlh + 8;
+  // 배점 비중 막대
+  const bh = 4; const items = D.rfp?.items || [];
+  if(ev && items.length > 1){ const gap = 2, tot = items.reduce((a, i) => a + (+i.score || 0), 0) || 1; const free = BW - gap * (items.length - 1); let bx = x0;
+    items.forEach(it => { const w = Math.max(3, free * (+it.score || 0) / tot); const on = (ev.id === it.id); els.push(E.rect(bx, y, w, bh, { fill:on ? (hd === 'line' ? c.ink : c.p1) : (hd === 'line' ? mix(c.ink, '#FFFFFF', .8) : c.line) })); bx += w + gap; }); }
+  else { els.push(E.rect(x0, y + 1.5, BW, 1, { fill:c.line })); els.push(E.rect(x0, y, 36, bh, { fill:hd === 'line' ? c.ink : c.p1 })); }
+  y += bh;
+  if(hd === 'panel') back.push(E.rect(-G.bleed, -G.bleed, W + G.bleed * 2, y + 12 + G.bleed, { fill:c.bg2 }));
+  els.splice(0, 1, ...back);
+  return { els, bodyY:Math.max(G.bodyTop, y + (hd === 'panel' ? 26 : 18)) };
 }
 function layoutOnce(pg, tk0, style, level, pats, g){
   const tk = g.fontStep ? { ...tk0, size:{ ...tk0.size, body:stepSize(tk0, g.fontStep) } } : tk0;
@@ -562,7 +569,7 @@ function layoutOnce(pg, tk0, style, level, pats, g){
   if(showNo){ const ps = tk.size.pno; groups.push({ id:'part-pageno', title:'쪽 번호', skip:true, els:[T([String(pg.n)], W / 2 - 20, yEnd + (G.mb - ps * 1.4) / 2, 40, { size:ps, weight:500, color:c.ink2, lh:ps * 1.4, align:'center' })] }); }
   // 본문: 헤드 메시지 → 소제목 묶음 → 사진 → 결론
   const secs = []; const subs = pg.st.subs; const vi = pats.indexOf('vs'); let num = 0;
-  if(pg.st.lead.length) secs.push({ title:'헤드 메시지', blocks:[blkHeadMsg(pg.st.lead, C, BW)], gapAfter:level >= 2 ? 14 : 20 });
+  if(pg.st.lead.length) secs.push({ title:'헤드 메시지', blocks:[blkHeadMsg(pg.st.lead, C, BW)], gapAfter:level >= 2 ? 14 : 20 + 4 * Math.max(0, -level) });
   subs.forEach((s, i) => {
     if(pats[i] === 'vs+') return;
     if(s.head) num++;
@@ -572,7 +579,7 @@ function layoutOnce(pg, tk0, style, level, pats, g){
   if(pg.pics.length) secs.push({ title:'사진', blocks:[blkPhotos(pg.pics, C, BW)] });
   const concs = pg.st.concs || (pg.st.conc ? [pg.st.conc] : []);
   if(concs.length) secs.push({ title:'핵심 실행 사항', blocks:[blkConc(concs, C, BW)] });
-  const inGap = level >= 2 ? 6 : 8, subGap = 7, secGap0 = level >= 1 ? 14 : 20;
+  const air = Math.max(0, -level); const inGap = level >= 2 ? 6 : 8 + 3 * air, subGap = 7 + 2 * air, secGap0 = level >= 1 ? 14 : 20 + 6 * air;
   const bodyTop = hd.bodyY; const avail = y1 - bodyTop;
   const gapOf = (s, i) => i < secs.length - 1 ? (s.gapAfter ?? secGap0) : 0;
   const nat = secs.reduce((a, s, i) => a + s.blocks.reduce((b, k) => b + k.h, 0) + s.blocks.slice(0, -1).reduce((b, k) => b + (k.kind === 'sub' ? subGap : inGap), 0) + gapOf(s, i), 0);
@@ -588,14 +595,17 @@ function layoutOnce(pg, tk0, style, level, pats, g){
   });
   const gapLeft = y1 - bottom;
   if(overflow) issues.push({ id:'overflow', lv:'err', msg:`원고가 한 쪽에 다 들어가지 않습니다 (${Math.round(-gapLeft)}pt 넘침). 분량 조정이 필요합니다.` });
-  else if(secs.length && gapLeft > avail * .35) issues.push({ id:'gap', lv:'warn', msg:`원고 분량이 적어 쪽 아래 ${Math.round(100 * gapLeft / avail)}%가 비어 있습니다. 원고 보강 후보입니다.` });
-  if(!pg.st.lead.length) issues.push({ id:'nomsg', lv:'info', msg:'헤드 메시지가 없습니다. 원고 첫 줄(소제목 앞)에 이 쪽의 핵심 주장을 한 문장으로 넣으면 머리틀 아래에 들어갑니다.' });
   if(L.blind){ const txt = [pg.title, ...pg.blocks.map(b => b.k === 'p' ? b.text : b.rows.flat().join(' '))].join(' '); const m = txt.match(/주식회사|㈜|\(주\)|대표이사|대표자/);
     if(m) issues.push({ id:'blind', lv:'err', con:true, msg:`블라인드 평가: 원고에 업체를 알아볼 수 있는 말(「${m[0]}」)이 있습니다. 원고 담당자에게 전달하세요.` });
     if(pg.pics.length) issues.push({ id:'blindpic', lv:'warn', msg:'블라인드 평가: 사진 속 회사명·로고가 없는지 눈으로 확인하세요.' }); }
   const used = []; for(const gr of groups) for(const e of gr.els) if(e.t === 'text' && !gr.skip && !e.skip) used.push(e.size);
   const floor = L.figMin || L.bodyMin; if(floor && used.some(s => s < floor - .01)) issues.push({ id:'font', lv:'err', con:true, msg:`과업지시서 최소 글자 크기보다 작은 글자가 있습니다.` });
-  return { n:pg.n, w:W, h:H, bleed:G.bleed, bg:c.page, groups, issues, level, overflow, slack, pats:pats.filter(p => p !== 'vs+'), tk, style, fontStep:g.fontStep };
+  // 완성도 지표: 본문 사용률, 본문 영역 글자 크기 단계, 구조화 요소, 헤드 메시지, 평가 항목 연결, 원고 글자 수
+  const kinds = new Set(secs.flatMap(s => s.blocks.map(b => b.kind)));
+  const bodySizes = new Set(); for(const gr of groups) if(/^part-\d+$/.test(gr.id)) for(const e of gr.els) if(e.t === 'text' && !e.skip) bodySizes.add(r1(e.size)); else if(e.t === 'table') bodySizes.add(r1(e.size));
+  const chars = [...pg.st.lead, ...subs.flatMap(s => [s.head || '', ...s.items.flatMap(i => [i.text, ...(i.kids || []).map(k => k.text)]), ...s.tables.flat(2)]), ...(pg.st.concs || [])].join('').replace(/\s/g, '').length;
+  const m = { use:avail > 0 ? (bottom - bodyTop) / avail : 1, steps:bodySizes.size, struct:['table','cards','flow','hub','kpi','timeline','vs','photo','notes'].some(k => kinds.has(k)), msg:!!pg.st.lead.length, sub:subs.some(s => s.head), evalOk:!!evalOf(pg), chars, body:tk.size.body };
+  return { n:pg.n, w:W, h:H, bleed:G.bleed, bg:c.page, groups, issues, level, overflow, slack, m, pats:pats.filter(p => p !== 'vs+'), tk, style, fontStep:g.fontStep };
 }
 function stepSize(tk, step){ const base = tk.size.body; const min = tk.locks.bodyMin || 9; return clamp(base + step * .5, min, base + 3); }
 
@@ -641,6 +651,7 @@ function drawTable(ctx, e){
   for(let r=1;r<e.rowH.length;r++){ yy += e.rowH[r-1]; ctx.beginPath(); ctx.moveTo(e.x, yy); ctx.lineTo(e.x + W, yy); ctx.stroke(); }
   if(e.vlines){ let xx = e.x; for(let c=1;c<e.colW.length;c++){ xx += e.colW[c-1]; ctx.beginPath(); ctx.moveTo(xx, e.y); ctx.lineTo(xx, e.y + H); ctx.stroke(); } }
   ctx.strokeStyle = e.edge; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + W, e.y); ctx.moveTo(e.x, e.y + H); ctx.lineTo(e.x + W, e.y + H); ctx.stroke();
+  if(e.headRule){ ctx.strokeStyle = e.edge; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(e.x, e.y + e.rowH[0]); ctx.lineTo(e.x + W, e.y + e.rowH[0]); ctx.stroke(); }
   for(const k of cs) drawText(ctx, k.tx);
 }
 async function scenePng(sc, scale = 100 / 72, type = 'image/png', bleed = 0){
@@ -669,6 +680,7 @@ function svgEl(e, sc){
     let yy = e.y; for(let r=1;r<e.rowH.length;r++){ yy += e.rowH[r-1]; s += `<line x1="${n2(e.x)}" y1="${n2(yy)}" x2="${n2(e.x + W)}" y2="${n2(yy)}" stroke="${e.line}" stroke-width=".6"/>`; }
     if(e.vlines){ let xx = e.x; for(let c=1;c<e.colW.length;c++){ xx += e.colW[c-1]; s += `<line x1="${n2(xx)}" y1="${n2(e.y)}" x2="${n2(xx)}" y2="${n2(e.y + H)}" stroke="${e.line}" stroke-width=".6"/>`; } }
     s += `<line x1="${n2(e.x)}" y1="${n2(e.y)}" x2="${n2(e.x + W)}" y2="${n2(e.y)}" stroke="${e.edge}" stroke-width="1.2"/><line x1="${n2(e.x)}" y1="${n2(e.y + H)}" x2="${n2(e.x + W)}" y2="${n2(e.y + H)}" stroke="${e.edge}" stroke-width="1.2"/>`;
+    if(e.headRule) s += `<line x1="${n2(e.x)}" y1="${n2(e.y + e.rowH[0])}" x2="${n2(e.x + W)}" y2="${n2(e.y + e.rowH[0])}" stroke="${e.edge}" stroke-width="1"/>`;
     for(const k of cs) s += svgText(k.tx); return s; }
   return '';
 }
@@ -712,6 +724,7 @@ async function addScene(pptx, sc, notes){
       const rows = e.cells.map(r => r.map(c => { const f = pptxFace(D.roles.body, c.weight); return { text:c.lines.map((l, i) => ({ text:l, options:{ softBreakBefore:i > 0 } })), options:{ fill:{ color:hx(c.fill) }, color:hx(c.color), bold:f.bold, fontFace:f.face, align:c.align, valign:'middle' } }; }));
       const nr = e.rowH.length;
       rows.forEach((r, ri) => r.forEach(c => { c.options.border = [{ type:'solid', pt:ri === 0 ? 1.2 : .6, color:hx(ri === 0 ? e.edge : e.line) }, e.vlines ? { type:'solid', pt:.6, color:hx(e.line) } : { type:'none' }, { type:'solid', pt:ri === nr - 1 ? 1.2 : .6, color:hx(ri === nr - 1 ? e.edge : e.line) }, e.vlines ? { type:'solid', pt:.6, color:hx(e.line) } : { type:'none' }]; }));
+      if(e.headRule) rows[0].forEach(c => { c.options.border[2] = { type:'solid', pt:1, color:hx(e.edge) }; });
       rows.forEach(r => { r[0].options.border[3] = { type:'none' }; r[r.length - 1].options.border[1] = { type:'none' }; });
       slide.addTable(rows, { x:IN(e.x), y:IN(e.y), w:IN(e.colW.reduce((a, b) => a + b, 0)), colW:e.colW.map(IN), rowH:e.rowH.map(IN), fontSize:e.size, margin:[0, IN(e.px), 0, IN(e.px)], lineSpacing:e.lh, autoPage:false });
     }
