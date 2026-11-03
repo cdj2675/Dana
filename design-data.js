@@ -106,8 +106,8 @@ async function readDocText(file){
   if(ext === 'docx') return readDocxRich(file);
   if(ext === 'hwpx') return readHwpxRich(file);
   if(ext === 'txt' || ext === 'md'){ const t = await file.text(); return { pages:t.split('\f').map((p, i) => ({ n:i+1, lines:p.split(/\r?\n/).map(s => s.trim()).filter(Boolean) })), tables:[] }; }
-  if(ext === 'hwp') throw { user:'HWP 파일은 읽을 수 없습니다. 한글에서 HWPX 또는 PDF로 저장한 뒤 올려 주세요.' };
-  throw { user:`「${file.name}」은 읽을 수 없는 형식입니다. PDF·HWPX·DOCX를 올려 주세요.` };
+  if(ext === 'hwp') return readHwpBin(file);
+  throw { user:`「${file.name}」은 읽을 수 없는 형식입니다. PDF·HWP·HWPX·DOCX를 올려 주세요.` };
 }
 async function readDocxRich(file){
   const zip = await JSZip.loadAsync(file); const doc = parseXml(await zip.file('word/document.xml').async('string'));
@@ -363,8 +363,8 @@ async function parseManuscript(file){
   let src;
   if(ext === 'docx') src = await parseDocx(file); else if(ext === 'hwpx') src = await parseHwpx(file);
   else if(ext === 'pdf') src = await parsePdfSource(file); else if(ext === 'txt' || ext === 'md') src = await parseTxt(file);
-  else if(ext === 'hwp') throw { user:'HWP 파일은 읽을 수 없습니다. 한글에서 HWPX 또는 PDF로 저장한 뒤 올려 주세요.' };
-  else throw { user:`「${file.name}」은 원고로 쓸 수 없는 형식입니다. PPTX·DOCX·HWPX·PDF를 올려 주세요.` };
+  else if(ext === 'hwp') src = await parseHwp(file);
+  else throw { user:`「${file.name}」은 원고로 쓸 수 없는 형식입니다. PPTX·DOCX·HWP·HWPX·PDF를 올려 주세요.` };
   const pages = Object.keys(src.pages).map(Number).sort((a,b) => a-b).map(n => {
     let paras = src.pages[n].paras.map(s => String(s).trim()).filter(Boolean);
     if(ext === 'pdf'){ const m = []; for(const l of paras){ const prev = m[m.length-1]; if(prev && !/^\s*([□■◆◇▣○●◦•▪\-–·※⇒]|\d{1,2}[.)]|[가-하][.)])/.test(l) && !/[.다:]$/.test(prev)) m[m.length-1] = prev + ' ' + l; else m.push(l); } paras = m; }
