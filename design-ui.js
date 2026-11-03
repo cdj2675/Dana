@@ -3,7 +3,7 @@
 // 화면은 4단계. 1~3단계는 확정 버튼으로 끝나고, 4단계에서 만들고 내보냄. (안쪽 화면 번호 1·2 / 4 / 5 / 6)
 const STAGES = [
   { n:1, t:'자료·스타일', s:'자료 올리기 → 디자인 시스템', steps:[1, 2], gate:1, done:() => `디자인 가이드 v${D.guide?.version || '1.0'}` },
-  { n:2, t:'쪽 계획', s:'배점 연결 → 페이지 플랜', steps:[4], gate:2, done:() => `${D.ms?.pages.length || 0}쪽 플랜` },
+  { n:2, t:'쪽 계획', s:'배점·중요도 연결 → 페이지 플랜', steps:[4], gate:2, done:() => `${D.ms?.pages.length || 0}쪽 플랜` },
   { n:3, t:'시안 고르기', s:'샘플 3쪽 A/B', steps:[5], gate:3, done:() => '스타일 확정' },
   { n:4, t:'전체 생성', s:'모든 쪽 만들기 → 내보내기', steps:[6], done:() => '내보냄' },
 ];
@@ -86,12 +86,20 @@ function P1(){
   const R = D.rfp, M = D.ms, A = D.assets;
   let rf = '';
   if(R && R.name !== '직접 입력'){ const tot = R.items.reduce((a, i) => a + i.score, 0);
-    rf = `<div class="xcard ${R.itemsOk ? 'ok' : ''}"><div class="xh"><b>평가 항목 ${R.items.length}개 · ${r1(tot)}점</b><span class="fname">${esc(R.name)}</span><button type="button" class="ghost" data-act="rmRfp">빼기</button></div>`
+    const consNote = `<div class="note">제약 조항 ${R.cons.length}개${R.cons.filter(c => c.status === 'check').length ? ` · 확인 필요 ${R.cons.filter(c => c.status === 'check').length}개는 위 배너에서 확정하세요` : ''}${R.by === 'claude' ? ' · Claude가 읽음' : ' · 문서에서 직접 찾음'}</div>`;
+    if(R.mode === 'derived'){ const multiArea = new Set(R.items.map(i => i.area)).size > 1; const area1 = !multiArea && R.items[0]?.area; const BN = { criteria:'평가 항목(배점 없음)', req:'과업 요구사항', claude:'과업 요구사항' };
+      rf = `<div class="xcard ${R.itemsOk ? 'ok' : ''}"><div class="xh"><b>${BN[R.basis] || '요구사항'} ${R.items.length}개 · 중요도 순</b><span class="fname">${esc(R.name)}</span><button type="button" class="ghost" data-act="rmRfp">빼기</button></div>
+        <div class="msg info">배점표가 없어, 발주처가 요구하는 사항을 ${R.basis === 'criteria' ? '평가 항목별로' : '과업별로'} 묶고 문서 근거(반드시·중점·특히 같은 강조, 요구 문장 수, 반복 언급, 평가 방법의 중점 언급)로 중요도를 매겼습니다. 중요도는 배점처럼 도식 밀도와 샘플 순서를 정합니다.</div>
+        <div class="tablewrap" style="max-height:260px"><table><thead><tr><th>요구사항</th><th>중요도</th><th class="n">비중</th><th>근거</th><th></th></tr></thead><tbody>${[...R.items].sort((a, b) => b.w - a.w).map(i => { const q = (i.quote || '').replace(/^[○●◦·•\-–]\s*/, ''); return `<tr><td><b>${esc(i.name)}</b>${multiArea ? ` <span class="muted" style="font-size:11.5px">${esc(i.area)}</span>` : ''}${q ? `<div class="muted" style="font-size:11.5px">${esc(q.slice(0, 70))}${q.length > 70 ? '…' : ''}</div>` : ''}</td>
+          <td><select data-tier="${i.id}" aria-label="${esc(i.name)} 중요도">${['상', '중', '하'].map(t => `<option ${tierOf(i.w) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td><td class="n">${Math.round(i.score)}%</td><td class="muted" style="font-size:12px">${esc(i.why || '')}</td>
+          <td><button type="button" class="ghost" data-act="rmItem" data-id="${i.id}" aria-label="${esc(i.name)} 빼기">×</button></td></tr>`; }).join('')}</tbody></table></div>
+        <div class="row">${R.itemsOk ? '<span class="tag t-done">중요도 확인함</span>' : '<span class="muted" style="font-size:12.5px">중요도가 맞나요? 틀린 것은 상·중·하를 바꾸거나 빼세요.</span><button type="button" data-act="itemsOk">맞아요</button>'}</div>${consNote}</div>`; }
+    else rf = `<div class="xcard ${R.itemsOk ? 'ok' : ''}"><div class="xh"><b>평가 항목 ${R.items.length}개 · ${r1(tot)}점</b><span class="fname">${esc(R.name)}</span><button type="button" class="ghost" data-act="rmRfp">빼기</button></div>`
       + (R.items.length ? `<div class="tablewrap" style="max-height:220px"><table><thead><tr><th>부문</th><th>평가 항목</th><th class="n">배점</th></tr></thead><tbody>${R.items.map(i => `<tr><td>${esc(i.area)}</td><td>${esc(i.name)}</td><td class="n">${r1(i.score)}</td></tr>`).join('')}</tbody></table></div>
         <div class="row">${R.itemsOk ? '<span class="tag t-done">배점표 확인함</span>' : '<span class="muted" style="font-size:12.5px">배점표가 맞나요?</span><button type="button" data-act="itemsOk">맞아요</button>'}</div>`
-        : '<div class="msg warn">배점표를 찾지 못했습니다. 배점 없이 모든 절을 같은 밀도로 다룹니다.</div>')
-      + `<div class="note">제약 조항 ${R.cons.length}개${R.cons.filter(c => c.status === 'check').length ? ` · 확인 필요 ${R.cons.filter(c => c.status === 'check').length}개는 위 배너에서 확정하세요` : ''}${R.by === 'claude' ? ' · Claude가 읽음' : ' · 문서에서 직접 찾음'}</div></div>`; }
-  else rf = `<div class="note">없으면 배점 없이 모든 절을 같은 밀도로 다룹니다.</div>`;
+        : '<div class="msg warn">배점표도, 대행사에게 요구하는 과업 내용도 찾지 못했습니다. 모든 절을 같은 밀도로 다룹니다. 스캔한 PDF라면 글자를 읽을 수 있는 PDF·HWPX·DOCX로 올려 주세요.</div>')
+      + consNote + '</div>'; }
+  else rf = `<div class="note">배점표가 있으면 그대로 따르고, 없으면 대행사에게 요구하는 과업 내용으로 중요도를 정합니다. 과업지시서가 없으면 모든 절을 같은 밀도로 다룹니다.</div>`;
   let ms = '';
   if(M){ const ct = contentPages(); const chs = [...new Set(M.sections.map(s => s.chapter).filter(Boolean))];
     ms = `<div class="xcard ${M.ok ? 'ok' : ''}"><div class="xh"><b>${M.pages.length}쪽 · 장 ${chs.length || '-'} · 절 ${M.sections.length}</b><span class="fname">${esc(M.name)}</span><button type="button" class="ghost" data-act="rmMs">빼기</button></div>
@@ -185,31 +193,31 @@ async function runMapping(force){
 }
 function mapBlock(){
   const items = D.rfp?.items || [];
-  if(!items.length) return `<div class="blk"><h3>배점 연결</h3><p class="muted" style="font-size:13px">과업지시서 배점이 없어 모든 절을 같은 밀도로 다룹니다.</p></div>`;
-  if(!D.mapping) return `<div class="blk"><h3>배점 연결</h3><p class="muted" style="font-size:13px">평가 항목과 원고 절을 잇고 있습니다…</p></div>`;
+  if(!items.length) return `<div class="blk"><h3>배점 연결</h3><p class="muted" style="font-size:13px">과업지시서에서 배점·요구사항을 찾지 못해 모든 절을 같은 밀도로 다룹니다.</p></div>`;
+  if(!D.mapping) return `<div class="blk"><h3>${WT()} 연결</h3><p class="muted" style="font-size:13px">평가 항목과 원고 절을 잇고 있습니다…</p></div>`;
   const A = D._an = analysis(); const maxD = Math.max(.01, ...A.secs.map(s => s.density));
   const used = new Set(Object.values(D.mapping).flat()); const free = D.ms.sections.filter(s => !used.has(s.id));
   const linked = items.length - A.unmapped.length;
   const rows = items.map(it => { const ss = (D.mapping[it.id] || []).map(id => D.ms.sections.find(s => s.id === id)).filter(Boolean); const pages = ss.reduce((a, s) => a + s.pages.length, 0);
-    return `<tr><td>${esc(it.area)}</td><td><b>${esc(it.name)}</b></td><td class="n">${r1(it.score)}</td>
+    return `<tr><td>${esc(it.area)}</td><td><b>${esc(it.name)}</b></td><td class="n">${derived() ? `${tierOf(it.w)} · ${Math.round(it.score)}%` : r1(it.score)}</td>
       <td><div class="secchips">${ss.map(s => `<span>${esc(s.title)}<button type="button" data-act="unmap" data-i="${it.id}" data-s="${s.id}" aria-label="${esc(s.title)} 빼기">×</button></span>`).join('')}
         <select data-map="${it.id}" aria-label="${esc(it.name)}에 절 더하기"><option value="">+ 절 더하기</option>${D.ms.sections.filter(s => !ss.includes(s)).map(s => `<option value="${s.id}">${esc(s.title)}${used.has(s.id) ? ' (다른 항목에서 옮김)' : ''}</option>`).join('')}</select></div></td>
-      <td class="n">${pages || '<span class="tag c-warn">없음</span>'}</td><td>${pages ? `<span class="dens" style="width:${Math.round(60 * (it.score / pages) / maxD)}px"></span>${r1(it.score / pages)}점/쪽` : ''}</td></tr>`; }).join('');
-  return `<details class="blk dfold" ${D.mapOpen ? 'open' : ''} data-fold="mapOpen"><summary><b>배점 연결</b><span class="tag ${A.unmapped.length ? 'c-warn' : 't-done'}">평가 항목 ${linked}/${items.length} 연결</span>${free.length ? `<span class="tag t-wait">배점 없는 절 ${free.length}</span>` : ''}<span class="muted">${D.mapOpen ? '접기' : '틀린 연결이 있으면 열어서 고치기'}</span></summary>
-    <p class="note">평가 항목마다 원고의 어느 절이 답하는지 이었습니다. 배점 ÷ 쪽수가 도식 밀도와 샘플 순서를 정합니다. <button type="button" class="ghost" data-act="remap">다시 자동 연결</button></p>
-    <div class="tablewrap"><table class="maptbl"><thead><tr><th>부문</th><th>평가 항목</th><th class="n">배점</th><th>원고 절</th><th class="n">쪽수</th><th>밀도</th></tr></thead><tbody>${rows}</tbody></table></div>
-    ${free.length ? `<div class="msg info">배점이 이어지지 않은 절: ${free.map(s => esc(s.title)).join(', ')}</div>` : ''}
-    ${A.unmapped.length ? `<div class="msg warn">원고에서 찾지 못한 평가 항목: ${A.unmapped.map(i => `${esc(i.name)}(${r1(i.score)}점)`).join(', ')} — 보완 제안의 「부족」으로 넘어갑니다.</div>` : ''}</details>`;
+      <td class="n">${pages || '<span class="tag c-warn">없음</span>'}</td><td>${pages ? `<span class="dens" style="width:${Math.round(60 * (it.score / pages) / maxD)}px"></span>${derived() ? Math.round(it.score / pages) + '%/쪽' : r1(it.score / pages) + '점/쪽'}` : ''}</td></tr>`; }).join('');
+  return `<details class="blk dfold" ${D.mapOpen ? 'open' : ''} data-fold="mapOpen"><summary><b>${WT()} 연결</b><span class="tag ${A.unmapped.length ? 'c-warn' : 't-done'}">${derived() ? '요구사항' : '평가 항목'} ${linked}/${items.length} 연결</span>${free.length ? `<span class="tag t-wait">${WT()} 없는 절 ${free.length}</span>` : ''}<span class="muted">${D.mapOpen ? '접기' : '틀린 연결이 있으면 열어서 고치기'}</span></summary>
+    <p class="note">${derived() ? '요구사항' : '평가 항목'}마다 원고의 어느 절이 답하는지 이었습니다. ${WT()} ÷ 쪽수가 도식 밀도와 샘플 순서를 정합니다. <button type="button" class="ghost" data-act="remap">다시 자동 연결</button></p>
+    <div class="tablewrap"><table class="maptbl"><thead><tr><th>${derived() ? '묶음' : '부문'}</th><th>${derived() ? '요구사항' : '평가 항목'}</th><th class="n">${WT()}</th><th>원고 절</th><th class="n">쪽수</th><th>밀도</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${free.length ? `<div class="msg info">${WT()}${derived() ? "가" : "이"} 이어지지 않은 절: ${free.map(s => esc(s.title)).join(', ')}</div>` : ''}
+    ${A.unmapped.length ? `<div class="msg warn">원고에서 찾지 못한 ${derived() ? '요구사항' : '평가 항목'}: ${A.unmapped.map(i => `${esc(i.name)}(${derived() ? '중요도 ' + tierOf(i.w) : r1(i.score) + '점'})`).join(', ')} — 보완 제안의 「부족」으로 넘어갑니다.</div>` : ''}</details>`;
 }
 
 // ── 4 보완 제안 + 페이지 플랜
 function suggestions(){
   const A = D._an = analysis(); const out = []; const items = D.rfp?.items || [];
-  for(const it of A.unmapped) out.push({ id:'lack:' + it.name, type:'부족', text:`「${it.name}」(${r1(it.score)}점) 항목을 다루는 원고가 없습니다.` });
+  for(const it of A.unmapped) out.push({ id:'lack:' + it.name, type:'부족', text:`「${it.name}」(${derived() ? '중요도 ' + tierOf(it.w) : r1(it.score) + '점'}) ${derived() ? '요구사항' : '항목'}을 다루는 원고가 없습니다.` });
   if(items.length) for(const s of A.secs){
-    if(s.status === 'lack') out.push({ id:'lack:' + s.id, type:'부족', text:`「${s.title}」 ${s.pages.length}쪽 — 배점 ${r1(s.score)}점에 비해 분량이 적습니다(배점 비율로 약 ${Math.max(1, Math.round(s.expected))}쪽).` });
-    if(s.status === 'over') out.push({ id:'over:' + s.id, type:'과잉', text:`「${s.title}」 ${s.pages.length}쪽 — 배점 ${r1(s.score)}점에 비해 분량이 많습니다. 줄여도 되는 후보입니다(약 ${Math.max(1, Math.round(s.expected))}쪽).` });
-    if(s.status === 'zero') out.push({ id:'zero:' + s.id, type:'과잉', text:`「${s.title}」 ${s.pages.length}쪽 — 이어진 평가 항목이 없습니다.` });
+    if(s.status === 'lack') out.push({ id:'lack:' + s.id, type:'부족', text:`「${s.title}」 ${s.pages.length}쪽 — ${WT()} ${ptLabel(s.score)}에 비해 분량이 적습니다(${WT()} 비율로 약 ${Math.max(1, Math.round(s.expected))}쪽).` });
+    if(s.status === 'over') out.push({ id:'over:' + s.id, type:'과잉', text:`「${s.title}」 ${s.pages.length}쪽 — ${WT()} ${ptLabel(s.score)}에 비해 분량이 많습니다. 줄여도 되는 후보입니다(약 ${Math.max(1, Math.round(s.expected))}쪽).` });
+    if(s.status === 'zero') out.push({ id:'zero:' + s.id, type:'과잉', text:`「${s.title}」 ${s.pages.length}쪽 — 이어진 ${derived() ? '요구사항' : '평가 항목'}이 없습니다.` });
   }
   for(const pg of contentPages()){ const ids = patternsFor(pg.n);
     pg.st.subs.forEach((s, i) => { if(ids[i] !== 'list') return; const txt = s.items.map(x => x.text).join(' ');
@@ -221,7 +229,7 @@ function suggestions(){
 function P4(){
   const A = D._an = analysis(); const L = locks(); const total = D.ms.pages.length; const over = L.pagesMax && total > L.pagesMax;
   const sg = D._sugg = suggestions(); const maxD = Math.max(.01, ...A.secs.map(s => s.density)); const items = D.rfp?.items || [];
-  const stName = { lack:'부족', over:'과잉', ok:'적정', zero:'배점 없음' }; const edit = !!D.patEdit;
+  const stName = { lack:'부족', over:'과잉', ok:'적정', zero:WT() + ' 없음' }; const edit = !!D.patEdit;
   let rows = '';
   for(const s of A.secs){
     const pageCells = s.pages.map(n => { const pg = msPage(n); const ids = patternsFor(n);
@@ -229,19 +237,19 @@ function P4(){
         const cs = ids[i] === 'vs' ? [{ id:'vs' }, ...patCandidates(sub)] : patCandidates(sub); const auto = (D._auto ||= autoPatterns())[n]?.[i];
         return `<select data-pat="${n}:${i}" title="${esc(sub.head || '내용')}" aria-label="${n}쪽 ${esc(sub.head || '내용')} 인포그래픽">${cs.map(c => `<option value="${c.id}" ${c.id === ids[i] ? 'selected' : ''}>${PATTERNS[c.id]?.name || c.id}${c.id === auto ? ' (권장)' : ''}</option>`).join('')}</select>`; }).join('');
       return `<div class="patchips"><b style="font-size:12px;min-width:34px">${n}쪽</b>${cells}${pg.pics.length ? '<span class="pchip">사진</span>' : ''}</div>`; }).join('');
-    rows += `<tr><td><b>${esc(s.title)}</b></td><td class="n">${items.length ? r1(s.score) : '-'}</td><td class="n">${s.pages.length}</td><td>${items.length ? `<span class="dens" style="width:${Math.round(50 * s.density / maxD)}px"></span>` : ''}<span class="tag st-${s.status}">${stName[s.status]}</span></td><td>${pageCells}</td></tr>`;
+    rows += `<tr><td><b>${esc(s.title)}</b></td><td class="n">${items.length ? (derived() ? Math.round(s.score) + '%' : r1(s.score)) : '-'}</td><td class="n">${s.pages.length}</td><td>${items.length ? `<span class="dens" style="width:${Math.round(50 * s.density / maxD)}px"></span>` : ''}<span class="tag st-${s.status}">${stName[s.status]}</span></td><td>${pageCells}</td></tr>`;
   }
   const dec = D.plan.dec; const g2 = D.gates.g2;
-  return `<section class="dpanel">${phead('쪽 계획', '쪽수는 원고가 정하고, 배점은 쪽 안의 도식 밀도와 샘플 순서를 정합니다. 이상이 없으면 바로 확정하세요.')}
-    <div class="totalbar"><span>원고 총 <b>${total}</b>쪽 = 플랜 <b>${total}</b>쪽 🔒</span>${L.pagesMax ? `<span class="${over ? 'tag c-err' : 'tag t-done'}">과업지시서 ${L.pagesMax}쪽 이내 ${over ? '· 넘침' : '✓'}</span>` : ''}${items.length ? `<span>배점 합계 <b>${r1(A.T)}</b>점</span>` : '<span class="muted">배점 없음 · 같은 밀도</span>'}${D.ms.pages.length !== contentPages().length ? `<span class="muted">장 표지 ${D.ms.pages.length - contentPages().length}쪽 포함</span>` : ''}</div>
+  return `<section class="dpanel">${phead('쪽 계획', `쪽수는 원고가 정하고, ${WT()}${derived() ? '(배점표가 없어 요구사항으로 정함)' : ''}는 쪽 안의 도식 밀도와 샘플 순서를 정합니다. 이상이 없으면 바로 확정하세요.`)}
+    <div class="totalbar"><span>원고 총 <b>${total}</b>쪽 = 플랜 <b>${total}</b>쪽 🔒</span>${L.pagesMax ? `<span class="${over ? 'tag c-err' : 'tag t-done'}">과업지시서 ${L.pagesMax}쪽 이내 ${over ? '· 넘침' : '✓'}</span>` : ''}${items.length ? (derived() ? `<span>중요도 기준 · 요구사항 <b>${items.length}</b>개</span>` : `<span>배점 합계 <b>${r1(A.T)}</b>점</span>`) : '<span class="muted">배점 없음 · 같은 밀도</span>'}${D.ms.pages.length !== contentPages().length ? `<span class="muted">장 표지 ${D.ms.pages.length - contentPages().length}쪽 포함</span>` : ''}</div>
     ${over ? `<div class="msg err">원고가 과업지시서 상한(${L.pagesMax}쪽)보다 ${total - L.pagesMax}쪽 많습니다. Dana는 쪽수를 바꾸지 않습니다. 원고 담당자가 분량을 줄인 뒤 다시 올려 주세요.</div>` : ''}
     ${mapBlock()}
     <div class="blk"><div class="row" style="justify-content:space-between"><h3>페이지 플랜</h3><button type="button" class="ghost" data-act="patEdit" aria-pressed="${edit}">${edit ? '바꾸기 끝' : '인포그래픽 유형 바꾸기'}</button></div>
-      <div class="tablewrap"><table><thead><tr><th>절</th><th class="n">배점</th><th class="n">쪽수</th><th>상태</th><th>쪽별 인포그래픽</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+      <div class="tablewrap"><table><thead><tr><th>절</th><th class="n">${WT()}</th><th class="n">쪽수</th><th>상태</th><th>쪽별 인포그래픽</th></tr></thead><tbody>${rows}</tbody></table></div></div>
     <details class="blk dfold" ${D.suggOpen ? 'open' : ''} data-fold="suggOpen"><summary><b>보완 제안</b><span class="tag ${sg.length ? 'c-warn' : 't-done'}">${sg.length}건</span><span class="muted">원고 담당자에게 전달할 목록 · 확정에는 필요 없음</span></summary>
       ${sg.length ? `<ul class="list sugg">${sg.map(x => `<li><span class="tag ${x.type === '부족' || x.type === '분량 조정' || x.type === '블라인드' ? 'c-warn' : x.type === '과잉' ? 'c-info' : 't-svg'}">${x.type}</span><span class="tx">${esc(x.text)}</span><span class="seg" role="group" aria-label="결정"><button type="button" data-act="dec" data-id="${esc(x.id)}" data-v="accept" aria-pressed="${dec[x.id] === 'accept'}">수용</button><button type="button" data-act="dec" data-id="${esc(x.id)}" data-v="hold" aria-pressed="${dec[x.id] === 'hold'}">보류</button></span></li>`).join('')}</ul>` : '<p class="muted">제안할 것이 없습니다.</p>'}
-      <div class="row"><button type="button" data-act="xlsPlan">배점 매핑표·보완 제안 엑셀로 받기</button></div></details>
-    ${foot(g2 ? '페이지 플랜 확정됨' : '확정하면 배점 높은 절에서 샘플 3쪽을 만들고 3단계로 넘어갑니다.', g2 ? `<button type="button" class="primary big" data-act="go" data-k="5">다음: 시안 고르기 →</button>` : gateBtn(2, '이 플랜으로 확정'))}</section>`;
+      <div class="row"><button type="button" data-act="xlsPlan">${WT()} 매핑표·보완 제안 엑셀로 받기</button></div></details>
+    ${foot(g2 ? '페이지 플랜 확정됨' : `확정하면 ${WT()} 높은 절에서 샘플 3쪽을 만들고 3단계로 넘어갑니다.`, g2 ? `<button type="button" class="primary big" data-act="go" data-k="5">다음: 시안 고르기 →</button>` : gateBtn(2, '이 플랜으로 확정'))}</section>`;
 }
 
 // ── 5 샘플 3쪽 A/B
@@ -255,7 +263,7 @@ function pickSamples(){
 function P5(){
   if(!D.samples.length) D.samples = pickSamples();
   const g3 = D.gates.g3;
-  return `<section class="dpanel">${phead('시안 고르기', '배점 높은 절에서 유형이 다른 3쪽을 두 가지로 그렸습니다. 쪽마다 마음에 드는 쪽을 누르세요. 권장안이 미리 골라져 있어 그대로 확정해도 됩니다.')}
+  return `<section class="dpanel">${phead('시안 고르기', `${WT()} 높은 절에서 유형이 다른 3쪽을 두 가지로 그렸습니다. 쪽마다 마음에 드는 쪽을 누르세요. 권장안이 미리 골라져 있어 그대로 확정해도 됩니다.`)}
     <div class="ab">${D.samples.map((s, i) => { const pg = msPage(s.n); return `<div class="abrow"><div class="abh"><b>샘플 ${i + 1} · ${s.n}쪽</b><span class="tag t-pdf">${KIND_NAME[s.kind]}</span><span class="muted" style="font-size:12.5px">${esc(pg.title)}</span></div>
       <div class="abpair">${['A', 'B'].map(v => `<button type="button" data-act="pick" data-i="${i}" data-v="${v}" aria-pressed="${s.pick === v}"><div class="pv"><img alt="${s.n}쪽 ${v}안" data-pv="ab:${s.n}:${v}"></div><div class="cap"><b>${v}안</b>${v === 'A' ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${v === 'A' ? styleDesc(STYLE_A, s.kind) : styleDesc(STYLE_B, s.kind)}</span></div></button>`).join('')}</div></div>`; }).join('')}</div>
     ${foot(g3 ? `스타일 확정됨 · 디자인 가이드 v${esc(D.guide.version)}` : '확정하면 고른 스타일로 모든 쪽을 만들고 4단계 전체 생성으로 넘어갑니다.', g3 ? `<button type="button" class="primary big" data-act="go" data-k="6">다음: 전체 생성 →</button>` : gateBtn(3, '이 스타일로 확정'))}</section>`;
@@ -435,8 +443,8 @@ async function dExport(){
 function planXlsx(withReview){
   const wb = XLSX.utils.book_new(); const sheet = (name, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
   const A = D._an = analysis(); const items = D.rfp?.items || [];
-  sheet('배점 매핑표', [['부문', '평가 항목', '배점', '원고 절', '쪽수', '밀도(점/쪽)'], ...items.map(it => { const ss = (D.mapping?.[it.id] || []).map(id => D.ms.sections.find(s => s.id === id)).filter(Boolean); const p = ss.reduce((a, s) => a + s.pages.length, 0); return [it.area, it.name, it.score, ss.map(s => s.title).join(', '), p, p ? r2(it.score / p) : '']; })]);
-  sheet('페이지 플랜', [['쪽', '절', '배점', '상태', '인포그래픽'], ...D.ms.pages.map(pg => { const s = A.secs.find(x => x.id === pg.sec); return [pg.n, pg.divider ? '(장 표지)' : s?.title || '', s ? r2(s.score / s.pages.length) : '', s?.status || '', pg.divider ? '장 표지' : patternsForPage(pg.n).filter(x => x !== 'vs+').map(x => PATTERNS[x]?.name || x).join(', ')]; })]);
+  sheet(derived() ? '중요도 매핑표' : '배점 매핑표', [derived() ? ['묶음', '요구사항', '중요도', '비중(%)', '근거', '원고 절', '쪽수'] : ['부문', '평가 항목', '배점', '원고 절', '쪽수', '밀도(점/쪽)'], ...items.map(it => { const ss = (D.mapping?.[it.id] || []).map(id => D.ms.sections.find(s => s.id === id)).filter(Boolean); const p = ss.reduce((a, s) => a + s.pages.length, 0); return derived() ? [it.area, it.name, tierOf(it.w), Math.round(it.score), it.why || '', ss.map(s => s.title).join(', '), p] : [it.area, it.name, it.score, ss.map(s => s.title).join(', '), p, p ? r2(it.score / p) : '']; })]);
+  sheet('페이지 플랜', [['쪽', '절', derived() ? '중요도(%/쪽)' : '배점', '상태', '인포그래픽'], ...D.ms.pages.map(pg => { const s = A.secs.find(x => x.id === pg.sec); return [pg.n, pg.divider ? '(장 표지)' : s?.title || '', s ? r2(s.score / s.pages.length) : '', s?.status || '', pg.divider ? '장 표지' : patternsForPage(pg.n).filter(x => x !== 'vs+').map(x => PATTERNS[x]?.name || x).join(', ')]; })]);
   const sg = D._sugg || suggestions(); sheet('보완 제안', [['유형', '내용', '결정'], ...sg.map(x => [x.type, x.text, D.plan.dec[x.id] === 'accept' ? '수용' : D.plan.dec[x.id] === 'hold' ? '보류' : ''])]);
   if(withReview && D.review.ran) sheet('점검 결과', [['쪽', '수준', '내용', '처리'], ...D.review.issues.map(i => [i.n || '전체', i.lv === 'err' ? '오류' : '확인', i.msg, i.ok ? '고침' : D.review.acked[i.key] ? '확인함' : ''])]);
   return new Blob([XLSX.write(wb, { bookType:'xlsx', type:'array' })]);
@@ -459,6 +467,7 @@ async function fillPreviews(){
 }
 
 // ───────────── 이벤트
+function afterItemChange(){ D.rfp.itemsOk = false; D._an = null; D._auto = null; if(D.gates.g1) D.gates.g2 = false; renderDesign(); saveSoon(); }
 function bindDesign(){
   const z = DZ();
   z.querySelectorAll('input[data-drop]').forEach(inp => { const id = inp.dataset.drop; const dz = $('#dz-' + id);
@@ -470,6 +479,7 @@ function bindDesign(){
   z.querySelectorAll('input[data-grid]').forEach(inp => inp.addEventListener('change', () => { const v = parseFloat(inp.value); if(!(v >= 0)) return; D.grid = { ...(D.grid || DEFAULT_GRID()), [inp.dataset.grid]:v * MM, name:(D.grid?.name || 'A4 기본 그리드').replace(/ \(고침\)$/, '') + ' (고침)' };
     if(!gridOK(D.grid)){ dmsg('assets', 'err', '여백이 너무 커서 본문 영역이 없습니다. 값을 확인해 주세요.'); } else dmsg('assets'); PV.clear(); renderDesign(); saveSoon(); }));
   z.querySelectorAll('select[data-map]').forEach(s => s.addEventListener('change', () => { if(!s.value) return; const it = s.dataset.map; for(const k in D.mapping) D.mapping[k] = D.mapping[k].filter(x => x !== s.value); D.mapping[it].push(s.value); D._an = null; D._auto = null; renderDesign(); saveSoon(); }));
+  z.querySelectorAll('select[data-tier]').forEach(s => s.addEventListener('change', () => { const it = D.rfp.items.find(i => i.id === s.dataset.tier); if(!it) return; it.w = TIER_W[s.value]; it.why = (it.why || '').replace(/ · 직접 고침$/, '') + ' · 직접 고침'; normDerived(D.rfp.items); afterItemChange(); }));
   z.querySelectorAll('select[data-pat]').forEach(s => s.addEventListener('change', () => { const [n, i] = s.dataset.pat.split(':').map(Number); (D.plan.pat[n] ||= {})[i] = s.value; PV.clear(); renderDesign(); saveSoon(); }));
   z.querySelectorAll('select[data-ppat]').forEach(s => s.addEventListener('change', async () => { const [n, i] = s.dataset.ppat.split(':').map(Number); const pats = [...patternsForPage(n)]; pats[i] = s.value; await genPage(n, { pats }); renderDesign(); saveSoon(); }));
   z.querySelectorAll('input[data-fmt]').forEach(c => c.addEventListener('change', () => { c.checked ? D.out.fmts.add(c.dataset.fmt) : D.out.fmts.delete(c.dataset.fmt); }));
@@ -483,7 +493,8 @@ const ACT = {
   conOff:el => { const c = D.rfp.cons.find(x => x.id === el.dataset.id); if(c) c.status = 'off'; afterConChange(); },
   rmRfp:() => { D.rfp = null; D.mapping = null; D._an = null; afterConChange(); },
   rmMs:() => { D.ms = null; resetProject(); Vault.drop('design:ms'); renderDesign(); renderBanner(); },
-  itemsOk:() => { D.rfp.itemsOk = true; renderDesign(); },
+  itemsOk:() => { D.rfp.itemsOk = true; renderDesign(); saveSoon(); },
+  rmItem:el => { D.rfp.items = D.rfp.items.filter(i => i.id !== el.dataset.id); if(D.mapping) delete D.mapping[el.dataset.id]; if(D.rfp.mode === 'derived') normDerived(D.rfp.items); afterItemChange(); },
   msOk:() => { D.ms.ok = true; renderDesign(); },
   mood:el => { if(D.mood !== el.dataset.v){ D.mood = el.dataset.v; D.colors = { primary:null, accent:null }; } for(const k of [...PV.keys()]) if(k.startsWith('mood:')) PV.delete(k); renderDesign(); saveSoon(); },
   color:el => { D.colors[el.dataset.k] = el.dataset.v; for(const k of [...PV.keys()]) if(k.startsWith('mood:' + D.mood)) PV.delete(k); renderDesign(); saveSoon(); },
@@ -498,7 +509,7 @@ const ACT = {
   patEdit:() => { D.patEdit = !D.patEdit; renderDesign(); },
   unmap:el => { D.mapping[el.dataset.i] = D.mapping[el.dataset.i].filter(x => x !== el.dataset.s); D._an = null; D._auto = null; renderDesign(); saveSoon(); },
   dec:el => { D.plan.dec[el.dataset.id] = D.plan.dec[el.dataset.id] === el.dataset.v ? null : el.dataset.v; renderDesign(); saveSoon(); },
-  xlsPlan:async () => { await dl(`배점매핑_보완제안_${today()}.xlsx`, planXlsx(false)); },
+  xlsPlan:async () => { await dl(`${WT()}매핑_보완제안_${today()}.xlsx`, planXlsx(false)); },
   pick:el => { D.samples[+el.dataset.i].pick = el.dataset.v; renderDesign(); },
   sel:el => { const n = +el.dataset.n; D.sel = D.sel === n ? null : n; D.altFor = D.abFor = null; D.lockMsg = null; renderDesign(); if(D.sel) $('#dDetail')?.scrollIntoView({ behavior:'smooth', block:'nearest' }); },
   pre:el => preset(el.dataset.v),
@@ -554,7 +565,7 @@ let saveT = null;
 function saveSoon(){ clearTimeout(saveT); saveT = setTimeout(saveState, 1200); }
 async function saveState(){
   if(!W.ok() || !D.ms) return;
-  const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, itemsOk:!!D.rfp.itemsOk } : null,
+  const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', itemsOk:!!D.rfp.itemsOk } : null,
     grid:D.grid, mood:D.mood, colors:D.colors, roles:{ body:famOf(D.roles.body).label, title:famOf(D.roles.title).label, num:D.roles.num ? famOf(D.roles.num).label : null }, iconMap:D.iconMap,
     mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
     pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked };

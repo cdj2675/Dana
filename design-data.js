@@ -183,6 +183,80 @@ function itemsFromLines(pages){
     } }
   return out;
 }
+// ───────────── 배점표가 없을 때: 평가 기준·과업 요구사항으로 중요도 정하기
+// 1) 배점 없는 평가 항목 표·목록이 있으면 그 항목을, 2) 없으면 「과업 내용·요구사항」 아래 소제목을 항목으로 삼고
+// 강조 표현·요구 문장 수·반복 언급·평가 기준 언급으로 중요도(1~5)를 매긴 뒤 합 100으로 나눔
+const REQ_SCOPE = /과업\s*(의\s*)?(내용|범위|세부|요구|목록)|세부\s*(과업|업무|추진)|요구\s*사항|제안\s*요청\s*(사항|내용)|수행\s*(내용|업무|사항|과업)|주요\s*(과업|업무|내용|사업)|업무\s*(내용|범위)|사업\s*(내용|범위)|추진\s*(내용|과제)|용역\s*(내용|범위)/;
+const REQ_SKIP = /입찰|계약|제출\s*(서류|방법|부수)|작성\s*(요령|방법|기준|지침)|평가\s*(방법|절차|기준|항목|위원)|유의\s*사항|일반\s*사항|기타|보안|대금|지체\s*상금|하자|과업\s*(개요|기간|명|목적|장소|예산)|사업\s*(개요|기간|예산)|용어|정의|목적|배경/;
+const REQ_SENT = /(할\s*것|하여야|해야\s*(함|한다|하며)|하도록\s*(함|한다)|제시\s*(할|하여|바람|요망)|포함\s*(할|하여)|바람\.?$|요망|필수|반드시)/;
+const EMPH = /반드시|필수|중점|핵심|최우선|우선적|특히|중요|강조|집중|역점|극대화/g;
+function headLevel(l){
+  const t = l.trim(); if(t.length > 48 || /(다|함|것|음|요)[.)]?$/.test(t.replace(/\s/g,''))) return 0;
+  if(/^(제\s*\d+\s*(장|편)|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ][.\s])/.test(t)) return 1;
+  if(/^제\s*\d+\s*조/.test(t)) return 2;
+  if(/^\d{1,2}\s*[.)]\s*\S/.test(t) && !/^\d+\.\d/.test(t)) return 2;
+  if(/^[가-하]\s*[.)]\s*\S/.test(t)) return 3;
+  if(/^[□■◆◇▣▶]/.test(t)) return 3;
+  if(/^(\(\d{1,2}\)|[①-⑳])\s*\S/.test(t)) return 4;
+  return 0;
+}
+const headName = l => l.trim().replace(/^(제\s*\d+\s*(장|편|조)|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]|\d{1,2}|[가-하]|\(\d{1,2}\)|[①-⑳□■◆◇▣▶])\s*[.)]?\s*/, '').replace(/[(（]\s*$/, '').trim();
+function outline(pages){
+  const nodes = [{ lv:0, title:'', lines:[], page:1 }];
+  for(const p of pages) for(const l of p.lines){ const lv = headLevel(l);
+    if(lv) nodes.push({ lv, title:headName(l), raw:l, lines:[], page:p.n }); else nodes[nodes.length - 1].lines.push(l); }
+  return nodes;
+}
+// 배점 없는 평가 항목: 표 머리에 평가 항목·요소·지표가 있고 배점이 없거나, 「평가 항목」 소제목 아래 목록
+function criteriaFrom(doc){
+  for(const T of doc.tables){ const rows = T.rows.filter(r => r.some(Boolean)); const h = rows.findIndex(r => r.some(c => /평가\s*(항목|요소|지표|기준)/.test(c)));
+    if(h < 0 || rows[h].some(c => /배\s*점|점\s*수/.test(c))) continue; const H = rows[h];
+    let nc = H.findIndex(c => /세부/.test(c)); if(nc < 0) nc = H.findIndex(c => /평가\s*(항목|요소|지표)/.test(c)); if(nc < 0) nc = H.findIndex(c => /평가\s*기준/.test(c));
+    const ac = H.findIndex((c, i) => i !== nc && /부\s*문|구\s*분|분\s*야|영\s*역|대\s*항목/.test(c)); let area = '';
+    const out = []; for(const r of rows.slice(h + 1)){ if(ac >= 0 && r[ac]) area = r[ac]; const name = (r[nc] || '').trim(); if(!name || name.length > 60 || /^(합\s*계|계|소\s*계)$/.test(name)) continue;
+      const others = r.filter((c, i) => i !== nc && i !== ac && c).join(' '); out.push({ name, area, body:[others], page:T.page }); }
+    if(out.length >= 2) return out; }
+  const N = outline(doc.pages);
+  for(let i = 0; i < N.length; i++){ const n = N[i]; if(!/평가\s*(항목|요소|지표)/.test(n.title) || /방법|절차|위원/.test(n.title)) continue;
+    const kids = []; for(let j = i + 1; j < N.length && N[j].lv > n.lv; j++) if(N[j].lv === n.lv + 1 || (kids.length && N[j].lv === kids[0].lv)) kids.push(N[j]);
+    if(kids.length >= 2) return kids.map(k => ({ name:k.title, raw:k.raw, area:'', body:k.lines, page:k.page }));
+    const bul = n.lines.filter(l => /^[○●◦·•\-–]\s*\S/.test(l) && l.length <= 50).map(l => l.replace(/^[○●◦·•\-–]\s*/, '').replace(/\s*[:：].*$/, '').trim());
+    if(bul.length >= 2) return bul.map(b => ({ name:b, area:'', body:[], page:n.page })); }
+  return [];
+}
+function reqsFromOutline(doc){
+  const N = outline(doc.pages); const out = [];
+  const scopes = N.map((n, i) => i).filter(i => N[i].lv && REQ_SCOPE.test(N[i].title) && !REQ_SKIP.test(N[i].title.replace(REQ_SCOPE, '')));
+  const take = (i, end) => { const n = N[i]; let cl = 0; for(let j = i + 1; j < end; j++) if(N[j].lv > n.lv && (!cl || N[j].lv < cl)) cl = N[j].lv;
+    const kids = []; for(let j = i + 1; j < end; j++) if(N[j].lv === cl){ const body = [...N[j].lines]; for(let k = j + 1; k < end && N[k].lv > cl; k++) body.push(N[k].raw, ...N[k].lines); kids.push({ name:N[j].title, raw:N[j].raw, area:n.title, body, page:N[j].page }); }
+    if(kids.length >= 2) return kids;
+    const bul = n.lines.filter(l => /^[○●◦·•]\s*\S/.test(l)).map(l => l.replace(/^[○●◦·•]\s*/, ''));
+    return bul.length >= 2 ? bul.map(b => ({ name:b.replace(/\s*(을|를)?\s*(제시|수립|포함|구축|마련)\s*(할\s*것|하여야\s*함|해야\s*함).*$/, '').slice(0, 40), area:n.title, body:[b], page:n.page })) : []; };
+  for(const i of scopes){ let end = i + 1; while(end < N.length && N[end].lv > N[i].lv) end++; out.push(...take(i, end)); }
+  if(out.length >= 2) return out.filter(x => !REQ_SKIP.test(x.name) || x.body.some(l => REQ_SENT.test(l)));
+  // 「과업 내용」 같은 제목이 없으면: 요구 문장이 2개 이상 달린 소제목
+  return N.filter(n => n.lv >= 2 && n.title && !REQ_SKIP.test(n.title) && n.lines.filter(l => REQ_SENT.test(l)).length >= 2).map(n => ({ name:n.title, raw:n.raw, area:'', body:n.lines, page:n.page }));
+}
+function weighItems(list, doc, basis){
+  const all = doc.pages.flatMap(p => p.lines); const evalL = all.filter(l => /평가/.test(l) && !/평가\s*(위원|절차|일정)/.test(l));
+  const raw = list.map(x => { const own = new Set(x.body); const txt = [x.name, ...x.body].join(' ');
+    const req = x.body.filter(l => REQ_SENT.test(l)).length; const emph = (txt.match(EMPH) || []).length;
+    if(x.raw) own.add(x.raw); const hit = l => !own.has(l) && l.trim() !== x.name && (l.includes(x.name) || simText(l, x.name) >= .5);
+    const ment = x.name.length >= 2 ? all.filter(hit).length : 0;
+    const ev = evalL.some(l => hit(l) && /중점|중요|특히|우선/.test(l));
+    const r = 2 + .35 * Math.min(req, 10) + .7 * Math.min(emph, 4) + .4 * Math.min(ment, 5) + .3 * Math.log2(1 + txt.length / 200) + (ev ? 1.5 : 0);
+    const why = [req && `요구 ${req}건`, emph && `강조 ${emph}회`, ment && `다른 곳 언급 ${ment}회`, ev && '평가 중점'].filter(Boolean).join(' · ');
+    return { x, r, why }; });
+  const lo = Math.min(...raw.map(v => v.r)), hi = Math.max(...raw.map(v => v.r));
+  return raw.map(({ x, r, why }) => ({ id:uid('i'), area:x.area || '', name:x.name, w:hi - lo < .3 ? 3 : clamp(Math.round(10 * r / hi) / 2, 1, 5), why:why || '기본', page:x.page, quote:(x.body.find(l => REQ_SENT.test(l)) || x.body[0] || '').slice(0, 120), detail:x.body.join(' ').slice(0, 400), basis }));
+}
+// 중요도(w 1~5) → score(합 100)
+function normDerived(items){ const t = items.reduce((a, i) => a + (+i.w || 0), 0) || 1; for(const i of items) i.score = 100 * (+i.w || 0) / t; return items; }
+const tierOf = w => w >= 4 ? '상' : w >= 2.5 ? '중' : '하';
+const TIER_W = { '상':5, '중':3, '하':1 };
+const derived = () => D.rfp?.mode === 'derived';
+const WT = () => derived() ? '중요도' : '배점';
+const ptLabel = v => derived() ? `${Math.round(v)}%` : `${r1(v)}점`;
 function consFromLines(pages){
   const out = []; const add = (kind, value, label, l, p, sure = true) => { if(out.some(c => c.kind === kind && String(c.value) === String(value))) return; out.push({ id:uid('c'), kind, value, label, quote:l.slice(0, 160), page:p, status:sure ? 'ok' : 'check', by:'auto' }); };
   for(const p of pages) for(const l of p.lines){
@@ -205,8 +279,11 @@ function consFromLines(pages){
 }
 const RFP_PROMPT = `다음은 공공 입찰 과업지시서(제안요청서) 본문입니다. 쪽마다 [p.N] 표시가 있습니다. 제안서 디자인에 필요한 정보만 아래 JSON 하나로 답하세요. 문서에 없는 내용은 넣지 말고, 추측하지 마세요.
 {"items":[{"area":"평가 부문(없으면 빈 문자열)","name":"평가 항목 이름(문서 그대로)","score":배점 숫자,"page":쪽 번호}],
+ "reqs":[{"area":"상위 묶음(없으면 빈 문자열)","name":"요구사항 이름(짧게, 문서 표현 위주)","weight":1~5,"why":"중요도 근거(20자 이내)","quote":"대표 근거 원문(문서 그대로, 120자 이내)","page":쪽 번호}],
  "constraints":[{"kind":"font_min|font_min_figure|font_face|pages_max|paper|orientation|duplex|binding|blind|submit_format|cover|toc_order|page_number|other","value":"값(숫자는 숫자만)","label":"배너에 쓸 아주 짧은 말(예: 본문 ≥ 11pt, 60쪽 이내)","page":쪽 번호,"quote":"근거 조항 원문(문서 그대로, 160자 이내)","sure":true 또는 false}]}
-- items: 정량·정성 평가표의 가장 작은 단위 항목만 넣습니다. 합계·소계는 넣지 않습니다.
+- items: 문서에 평가 항목별 점수(배점)가 숫자로 적혀 있을 때만, 가장 작은 단위 항목을 넣습니다. 합계·소계는 넣지 않습니다. 점수가 없으면 빈 배열로 둡니다.
+- reqs: items가 비었을 때만 채웁니다. 배점 없는 평가 항목(평가 요소·지표)이 있으면 그것을, 없으면 발주처가 대행업체(수행사)에게 요구하는 과업·요구사항을 제안서 목차 한 절로 쓸 만한 단위(4~12개)로 묶어 넣습니다. 입찰·계약·제출 서류·제안서 작성 요령처럼 제안서 모양이나 행정 절차에 관한 것은 넣지 않습니다.
+  weight는 문서 근거로만 매깁니다: 「반드시·필수·중점·최우선·특히」 같은 강조, 요구 문장과 세부 조건의 수, 여러 곳에서 반복 언급, 평가 방법에서 중점 평가한다고 한 것. 근거가 비슷하면 같은 값을 줍니다.
 - constraints: 제안서 분량·용지·방향·인쇄·제본, 글자 크기, 지정 서체, 업체 식별 금지(블라인드), 제출 형식, 표지·목차·쪽 번호 규칙처럼 제안서 모양을 제한하는 조항만 넣습니다. 해석이 애매하면 sure를 false로 둡니다.
 
 본문:
@@ -214,7 +291,10 @@ const RFP_PROMPT = `다음은 공공 입찰 과업지시서(제안요청서) 본
 async function extractRfp(file){
   const doc = await readDocText(file);
   let items = itemsFromTables(doc.tables); if(!items.length) items = itemsFromLines(doc.pages);
-  let cons = consFromLines(doc.pages); let by = 'auto';
+  let cons = consFromLines(doc.pages); let by = 'auto', mode = 'score', basis = 'score';
+  // 배점표가 없으면: 배점 없는 평가 항목 → 과업 요구사항 순으로 찾아 중요도를 매김
+  let reqs = [];
+  if(!items.length){ const cr = criteriaFrom(doc); if(cr.length >= 2){ reqs = weighItems(cr, doc, 'criteria'); basis = 'criteria'; } else { const rq = reqsFromOutline(doc); if(rq.length >= 2){ reqs = weighItems(rq, doc, 'req'); basis = 'req'; } } }
   if(S.sample){
     try{
       const text = doc.pages.map(p => `[p.${p.n}]\n` + p.lines.join('\n')).join('\n').slice(0, 80000);
@@ -225,11 +305,17 @@ async function extractRfp(file){
         const num = CON_KINDS[x.kind].num ? parseFloat(x.value) || null : null; const numOk = !CON_KINDS[x.kind].num || (q.match(/\d+(?:\.\d+)?/g) || []).map(Number).includes(num);
         return { id:uid('c'), kind:x.kind, value:CON_KINDS[x.kind].num ? num : (x.kind === 'blind' ? true : String(x.value || '').trim()), label:String(x.label || CON_KINDS[x.kind].name).slice(0, 24), quote:q.slice(0, 160), page:+x.page || null, status:x.sure && found && numOk ? 'ok' : 'check', by:'claude' }; })
         .filter(c => !CON_KINDS[c.kind].num || c.value > 0);
-      if(it2.length >= items.length) items = it2;
+      // Claude가 말한 배점은 문서에 그 숫자가 있을 때만 믿음
+      const docTxt = doc.pages.map(p => p.lines.join(' ')).join(' ');
+      const it2ok = it2.every(x => new RegExp(`(^|[^\\d.])${String(x.score).replace('.', '\\.')}\\s*(점|[^\\d.]|$)`).test(docTxt));
+      if(it2.length && it2ok && it2.length >= items.length) items = it2;
+      const rq2 = (raw?.reqs || []).filter(x => x && x.name).map(x => { const q = String(x.quote || '').trim(); return { id:uid('i'), area:String(x.area || '').trim(), name:String(x.name).trim().slice(0, 40), w:clamp(Math.round((+x.weight || 3) * 2) / 2, 1, 5), why:String(x.why || '').slice(0, 30) || '기본', page:+x.page || null, quote:q && flat.includes(norm(q).slice(0, 30)) ? q.slice(0, 120) : '', detail:q, basis:'claude' }; });
+      if(!items.length && rq2.length >= 2){ reqs = rq2; basis = 'claude'; }
       if(c2.length){ for(const c of cons){ const k = c2.findIndex(x => x.kind === c.kind); if(k < 0) c2.push(c); else if(c.status === 'ok' && c2[k].status !== 'ok') c2[k] = c; } cons = c2; }
       by = 'claude';
     }catch(e){ console.warn('rfp claude', e); }
   }
+  if(!items.length && reqs.length){ items = normDerived(reqs); mode = 'derived'; } else basis = items.length ? 'score' : 'none';
   // 같은 종류가 둘 이상이면 하나로(가장 엄격한 값)
   const merged = [];
   for(const c of cons){ const o = merged.find(x => x.kind === c.kind && x.kind !== 'other');
@@ -237,7 +323,7 @@ async function extractRfp(file){
     if(o.status === 'ok' && c.status !== 'ok') continue; if(c.status === 'ok' && o.status !== 'ok'){ Object.assign(o, c); continue; }
     if(c.kind === 'font_min' || c.kind === 'font_min_figure'){ if(c.value > o.value) Object.assign(o, c); }
     else if(c.kind === 'pages_max'){ if(c.value < o.value) Object.assign(o, c); } }
-  return { name:file.name, items, cons:merged, by, pages:doc.pages.length };
+  return { name:file.name, items, cons:merged, by, mode, basis, pages:doc.pages.length };
 }
 const con = kind => (D.rfp?.cons || []).find(c => c.kind === kind && c.status === 'ok');
 const conAny = kind => (D.rfp?.cons || []).find(c => c.kind === kind && c.status !== 'off');
@@ -479,14 +565,14 @@ function autoMap(){
   if(!items.length) return map;
   for(const s of D.ms.sections){
     let best = null, bv = 0;
-    for(const it of items){ const v = Math.max(simText(s.title, it.name), simText(s.title, (it.area || '') + it.name) * .9); if(v > bv){ bv = v; best = it; } }
+    for(const it of items){ const v = Math.max(simText(s.title, it.name), simText(s.title, (it.area || '') + it.name) * .9, it.detail ? simText(s.title, it.detail) * .55 : 0); if(v > bv){ bv = v; best = it; } }
     if(best && bv >= .34) map[best.id].push(s.id);
   }
   return map;
 }
 const MAP_PROMPT = `제안서 평가 항목과 원고의 절 목록입니다. 각 평가 항목을 다루는 절을 고르세요. 한 절은 한 항목에만 넣고, 맞는 절이 없으면 빈 배열로 둡니다. JSON 하나로만 답하세요: {"map":[{"item":"항목 id","sections":["절 id", ...]}]}\n\n`;
 async function claudeMap(){
-  const items = D.rfp.items.map(i => `${i.id}: ${i.area ? i.area + ' > ' : ''}${i.name} (${i.score}점)`).join('\n');
+  const items = D.rfp.items.map(i => `${i.id}: ${i.area ? i.area + ' > ' : ''}${i.name} (${derived() ? '중요도 ' + tierOf(i.w) : i.score + '점'})${i.detail ? ' — ' + i.detail.slice(0, 120) : ''}`).join('\n');
   const secs = D.ms.sections.map(s => { const p = msPage(s.pages[0]); const first = p ? p.st.subs.map(x => x.head).filter(Boolean).slice(0, 4).join(' / ') : ''; return `${s.id}: ${s.title} — ${first}`; }).join('\n');
   const raw = await askJson(MAP_PROMPT + '[평가 항목]\n' + items + '\n\n[원고 절]\n' + secs);
   const map = {}; for(const it of D.rfp.items) map[it.id] = []; const used = new Set();

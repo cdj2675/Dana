@@ -16,7 +16,7 @@ function tokens(over){
   const m = MOODS[over?.mood || D.mood] || MOODS.navy; const L = locks();
   const prim = (over?.colors || D.colors).primary || m.primary, acc = (over?.colors || D.colors).accent || m.accent;
   const G = D.grid || DEFAULT_GRID();
-  const body = Math.max(11, L.bodyMin || 0), fig = Math.max(9, L.figMin || 0);
+  const body = Math.max(11, L.bodyMin || 0), fig = Math.max(9, L.figMin || L.bodyMin || 0);   // 표·그림 하한이 따로 없으면 본문 하한을 모든 글자에
   const c = { p0:mix(prim, '#000000', .28), p1:prim, p2:mix(prim, '#FFFFFF', .88), p3:mix(prim, '#FFFFFF', .55), bg:'#FFFFFF', bg2:mix(prim, '#FFFFFF', .95),
     line:mix(prim, '#FFFFFF', .7), point:prim !== m.primary ? mix(prim, '#FFFFFF', .3) : m.point, accent:acc, ink:m.ink, ink2:m.ink2, white:'#FFFFFF' };
   c.onP1 = contrast('#FFFFFF', prim) >= 4.5 ? '#FFFFFF' : m.ink;
