@@ -221,9 +221,6 @@ function suggestions(){
     if(s.status === 'over') out.push({ id:'over:' + s.id, type:'과잉', text:`「${s.title}」 ${s.pages.length}쪽 — ${WT()} ${ptLabel(s.score)}에 비해 분량이 많습니다. 줄여도 되는 후보입니다(약 ${Math.max(1, Math.round(s.expected))}쪽).` });
     if(s.status === 'zero') out.push({ id:'zero:' + s.id, type:'과잉', text:`「${s.title}」 ${s.pages.length}쪽 — 이어진 ${derived() ? '요구사항' : '평가 항목'}이 없습니다.` });
   }
-  for(const pg of contentPages()){ const ids = patternsFor(pg.n);
-    pg.st.subs.forEach((s, i) => { if(ids[i] !== 'list') return; const txt = s.items.map(x => x.text).join(' ');
-      if((txt.match(new RegExp(NUM_UNIT.source, 'g')) || []).length >= 2 || /→|단계|절차|순서/.test(txt)) out.push({ id:`viz:${pg.n}:${i}`, type:'도식화', text:`${pg.n}쪽 「${s.head || '내용'}」 — 수치·단계가 있어 인포그래픽으로 바꿀 수 있습니다. 원고를 항목별로 나눠 쓰면 자동으로 도식이 됩니다.` }); }); }
   for(const pg of contentPages()){ const sc = composePage(pg.n, { tk:D.guide?.tk }); if(sc.overflow) out.push({ id:'fit:' + pg.n, type:'분량 조정', text:`${pg.n}쪽 원고가 한 쪽에 다 들어가지 않습니다. 원고 담당자가 줄인 뒤 다시 올려 주세요.` });
     for(const is of sc.issues.filter(x => x.id === 'blind')) out.push({ id:'blind:' + pg.n, type:'블라인드', text:`${pg.n}쪽 ${is.msg.replace('블라인드 평가: ', '')}` }); }
   return out;
@@ -241,7 +238,7 @@ function P4(){
       return `<div class="patchips"><b style="font-size:12px;min-width:34px">${n}쪽</b>${cells}${pg.pics.length ? '<span class="pchip">사진</span>' : ''}</div>`; }).join('');
     rows += `<tr><td><b>${esc(s.title)}</b></td><td class="n">${items.length ? (derived() ? Math.round(s.score) + '%' : r1(s.score)) : '-'}</td><td class="n">${s.pages.length}</td><td>${items.length ? `<span class="dens" style="width:${Math.round(50 * s.density / maxD)}px"></span>` : ''}<span class="tag st-${s.status}">${stName[s.status]}</span></td><td>${pageCells}</td></tr>`;
   }
-  const dec = D.plan.dec; const g2 = D.gates.g2;
+  const g2 = D.gates.g2;
   return `<section class="dpanel">${phead('쪽 계획', `쪽수는 원고가 정하고, ${WT()}${derived() ? '(배점표가 없어 요구사항으로 정함)' : ''}는 쪽 안의 도식 밀도와 샘플 순서를 정합니다. 이상이 없으면 바로 확정하세요.`)}
     <div class="totalbar"><span>원고 총 <b>${total}</b>쪽 = 플랜 <b>${total}</b>쪽 🔒</span>${L.pagesMax ? `<span class="${over ? 'tag c-err' : 'tag t-done'}">과업지시서 ${L.pagesMax}쪽 이내 ${over ? '· 넘침' : '✓'}</span>` : ''}${items.length ? (derived() ? `<span>중요도 기준 · 요구사항 <b>${items.length}</b>개</span>` : `<span>배점 합계 <b>${r1(A.T)}</b>점</span>`) : '<span class="muted">배점 없음 · 같은 밀도</span>'}${D.ms.pages.length !== contentPages().length ? `<span class="muted">장 표지 ${D.ms.pages.length - contentPages().length}쪽 포함</span>` : ''}</div>
     ${over ? `<div class="msg err">원고가 과업지시서 상한(${L.pagesMax}쪽)보다 ${total - L.pagesMax}쪽 많습니다. Dana는 쪽수를 바꾸지 않습니다. 원고 담당자가 분량을 줄인 뒤 다시 올려 주세요.</div>` : ''}
@@ -249,7 +246,7 @@ function P4(){
     <div class="blk"><div class="row" style="justify-content:space-between"><h3>페이지 플랜</h3><button type="button" class="ghost" data-act="patEdit" aria-pressed="${edit}">${edit ? '바꾸기 끝' : '인포그래픽 유형 바꾸기'}</button></div>
       <div class="tablewrap"><table><thead><tr><th>절</th><th class="n">${WT()}</th><th class="n">쪽수</th><th>상태</th><th>쪽별 인포그래픽</th></tr></thead><tbody>${rows}</tbody></table></div></div>
     <details class="blk dfold" ${D.suggOpen ? 'open' : ''} data-fold="suggOpen"><summary><b>보완 제안</b><span class="tag ${sg.length ? 'c-warn' : 't-done'}">${sg.length}건</span><span class="muted">원고 담당자에게 전달할 목록 · 확정에는 필요 없음</span></summary>
-      ${sg.length ? `<ul class="list sugg">${sg.map(x => `<li><span class="tag ${x.type === '부족' || x.type === '분량 조정' || x.type === '블라인드' ? 'c-warn' : x.type === '과잉' ? 'c-info' : 't-svg'}">${x.type}</span><span class="tx">${esc(x.text)}</span><span class="seg" role="group" aria-label="결정"><button type="button" data-act="dec" data-id="${esc(x.id)}" data-v="accept" aria-pressed="${dec[x.id] === 'accept'}">수용</button><button type="button" data-act="dec" data-id="${esc(x.id)}" data-v="hold" aria-pressed="${dec[x.id] === 'hold'}">보류</button></span></li>`).join('')}</ul>` : '<p class="muted">제안할 것이 없습니다.</p>'}
+      ${sg.length ? `<ul class="list sugg">${sg.map(x => `<li><span class="tag ${x.type === '부족' || x.type === '분량 조정' || x.type === '블라인드' ? 'c-warn' : x.type === '과잉' ? 'c-info' : 't-svg'}">${x.type}</span><span class="tx">${esc(x.text)}</span></li>`).join('')}</ul>` : '<p class="muted">제안할 것이 없습니다.</p>'}
       <div class="row"><button type="button" data-act="xlsPlan">${WT()} 매핑표·보완 제안 엑셀로 받기</button></div></details>
     ${foot(g2 ? '페이지 플랜 확정됨' : `확정하면 ${WT()} 높은 절에서 샘플 3쪽을 만들고 3단계로 넘어갑니다.`, g2 ? `<button type="button" class="primary big" data-act="go" data-k="5">다음: 시안 고르기 →</button>` : gateBtn(2, '이 플랜으로 확정'))}</section>`;
 }
@@ -468,7 +465,7 @@ function planXlsx(withReview){
   const A = D._an = analysis(); const items = D.rfp?.items || [];
   sheet(derived() ? '중요도 매핑표' : '배점 매핑표', [derived() ? ['묶음', '요구사항', '중요도', '비중(%)', '근거', '원고 절', '쪽수'] : ['부문', '평가 항목', '배점', '원고 절', '쪽수', '밀도(점/쪽)'], ...items.map(it => { const ss = (D.mapping?.[it.id] || []).map(id => D.ms.sections.find(s => s.id === id)).filter(Boolean); const p = ss.reduce((a, s) => a + s.pages.length, 0); return derived() ? [it.area, it.name, tierOf(it.w), Math.round(it.score), it.why || '', ss.map(s => s.title).join(', '), p] : [it.area, it.name, it.score, ss.map(s => s.title).join(', '), p, p ? r2(it.score / p) : '']; })]);
   sheet('페이지 플랜', [['쪽', '절', derived() ? '중요도(%/쪽)' : '배점', '상태', '인포그래픽'], ...D.ms.pages.map(pg => { const s = A.secs.find(x => x.id === pg.sec); return [pg.n, pg.divider ? '(장 표지)' : s?.title || '', s ? r2(s.score / s.pages.length) : '', s?.status || '', pg.divider ? '장 표지' : patternsForPage(pg.n).filter(x => x !== 'vs+').map(x => PATTERNS[x]?.name || x).join(', ')]; })]);
-  const sg = D._sugg || suggestions(); sheet('보완 제안', [['유형', '내용', '결정'], ...sg.map(x => [x.type, x.text, D.plan.dec[x.id] === 'accept' ? '수용' : D.plan.dec[x.id] === 'hold' ? '보류' : ''])]);
+  const sg = D._sugg || suggestions(); sheet('보완 제안', [['유형', '내용'], ...sg.map(x => [x.type, x.text])]);
   if(withReview && D.review.ran) sheet('점검 결과', [['쪽', '수준', '내용', '처리'], ...D.review.issues.map(i => [i.n || '전체', i.lv === 'err' ? '오류' : '확인', i.msg, i.ok ? '고침' : D.review.acked[i.key] ? '확인함' : ''])]);
   return new Blob([XLSX.write(wb, { bookType:'xlsx', type:'array' })]);
 }
@@ -547,7 +544,6 @@ const ACT = {
   remap:() => runMapping(true),
   patEdit:() => { D.patEdit = !D.patEdit; renderDesign(); },
   unmap:el => { D.mapping[el.dataset.i] = D.mapping[el.dataset.i].filter(x => x !== el.dataset.s); D._an = null; D._auto = null; renderDesign(); saveSoon(); },
-  dec:el => { D.plan.dec[el.dataset.id] = D.plan.dec[el.dataset.id] === el.dataset.v ? null : el.dataset.v; renderDesign(); saveSoon(); },
   xlsPlan:async () => { await dl(`${WT()}매핑_보완제안_${today()}.xlsx`, planXlsx(false)); },
   pick:el => { D.samples[+el.dataset.i].pick = el.dataset.v; renderDesign(); },
   sel:el => { const n = +el.dataset.n; D.sel = D.sel === n ? null : n; D.altFor = D.abFor = null; D.lockMsg = null; renderDesign(); if(D.sel) $('#dDetail')?.scrollIntoView({ behavior:'smooth', block:'nearest' }); },
