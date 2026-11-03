@@ -5,7 +5,7 @@ const STAGES = [
   { n:1, t:'자료·스타일', s:'자료 올리기 → 디자인 시스템', steps:[1, 2], gate:1, done:() => `디자인 가이드 v${D.guide?.version || '1.0'}` },
   { n:2, t:'쪽 계획', s:'배점 연결 → 페이지 플랜', steps:[4], gate:2, done:() => `${D.ms?.pages.length || 0}쪽 플랜` },
   { n:3, t:'시안 고르기', s:'샘플 3쪽 A/B', steps:[5], gate:3, done:() => '스타일 확정' },
-  { n:4, t:'완성', s:'전체 생성 → 검수·내보내기', steps:[6], done:() => '내보냄' },
+  { n:4, t:'전체 생성', s:'모든 쪽 만들기 → 내보내기', steps:[6], done:() => '내보냄' },
 ];
 const stageOf = k => STAGES.find(s => s.steps.includes(k)) || STAGES[0];
 const stageDone = st => st.gate ? D.gates['g' + st.gate] : !!D.review.exported;
@@ -258,7 +258,7 @@ function P5(){
   return `<section class="dpanel">${phead('시안 고르기', '배점 높은 절에서 유형이 다른 3쪽을 두 가지로 그렸습니다. 쪽마다 마음에 드는 쪽을 누르세요. 권장안이 미리 골라져 있어 그대로 확정해도 됩니다.')}
     <div class="ab">${D.samples.map((s, i) => { const pg = msPage(s.n); return `<div class="abrow"><div class="abh"><b>샘플 ${i + 1} · ${s.n}쪽</b><span class="tag t-pdf">${KIND_NAME[s.kind]}</span><span class="muted" style="font-size:12.5px">${esc(pg.title)}</span></div>
       <div class="abpair">${['A', 'B'].map(v => `<button type="button" data-act="pick" data-i="${i}" data-v="${v}" aria-pressed="${s.pick === v}"><div class="pv"><img alt="${s.n}쪽 ${v}안" data-pv="ab:${s.n}:${v}"></div><div class="cap"><b>${v}안</b>${v === 'A' ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${v === 'A' ? styleDesc(STYLE_A, s.kind) : styleDesc(STYLE_B, s.kind)}</span></div></button>`).join('')}</div></div>`; }).join('')}</div>
-    ${foot(g3 ? `스타일 확정됨 · 디자인 가이드 v${esc(D.guide.version)}` : '확정하면 고른 스타일로 모든 쪽을 만들고 4단계로 넘어갑니다.', g3 ? `<button type="button" class="primary big" data-act="go" data-k="6">다음: 완성 →</button>` : gateBtn(3, '이 스타일로 확정'))}</section>`;
+    ${foot(g3 ? `스타일 확정됨 · 디자인 가이드 v${esc(D.guide.version)}` : '확정하면 고른 스타일로 모든 쪽을 만들고 4단계 전체 생성으로 넘어갑니다.', g3 ? `<button type="button" class="primary big" data-act="go" data-k="6">다음: 전체 생성 →</button>` : gateBtn(3, '이 스타일로 확정'))}</section>`;
 }
 function styleDesc(st, kind){ const A = st === STYLE_A; return kind === 'table' ? (A ? '진한 머리행 표 · 테두리 카드' : '연한 머리행·줄무늬 표 · 색 채운 카드') : kind === 'diagram' ? (A ? '화살표 흐름 · 원형 허브' : '번호 원 흐름 · 색 채운 상자') : (A ? '테두리 카드 · 소제목 밑줄' : '색 채운 카드 · 소제목 띠'); }
 function styleFromSamples(){
@@ -299,11 +299,11 @@ function P6(){
   const ns = D.ms.pages.map(p => p.n); const made = ns.filter(n => D.pages[n]?.url).length;
   const errs = ns.filter(n => D.pages[n]?.sc?.issues.some(i => i.lv === 'err')).length;
   const R = D.review; const blockN = (R.issues || []).filter(i => !i.ok && !R.acked[i.key] && i.lv === 'err').length;
-  return `<section class="dpanel">${phead('완성', '확정한 스타일로 모든 쪽을 만들었습니다. 고칠 쪽만 눌러 프리셋으로 고치고, 맨 아래에서 내보내세요.', `<div class="row"><span class="muted" style="font-size:13px">${made}/${ns.length}쪽${errs ? ` · <span class="tag c-err">확인 ${errs}쪽</span>` : ''}</span><button type="button" class="ghost" data-act="regenAll" ${D.gen.running ? 'disabled' : ''}>전체 다시 만들기</button></div>`)}
+  return `<section class="dpanel">${phead('전체 생성', '확정한 스타일로 모든 쪽을 만들었습니다. 고칠 쪽만 눌러 프리셋으로 고치고, 맨 아래에서 내보내세요.', `<div class="row"><span class="muted" style="font-size:13px">${made}/${ns.length}쪽${errs ? ` · <span class="tag c-err">확인 ${errs}쪽</span>` : ''}</span><button type="button" class="ghost" data-act="regenAll" ${D.gen.running ? 'disabled' : ''}>전체 다시 만들기</button></div>`)}
     <div class="board" id="dBoard">${boardHtml()}</div>
     <div id="dDetail">${D.sel ? detailHtml(D.sel) : ''}</div>
     ${exportBlock()}
-    ${foot(R.ran ? (blockN ? '「반영」을 누르면 그 쪽만 다시 만들고 다시 검수합니다.' : '') : '내보내기 전에 검수가 먼저 돌아갑니다.', `<button type="button" class="primary big" data-act="export" ${made ? '' : 'disabled'}>${R.ran && !blockN ? '내보내기' : '검수하고 내보내기'}</button>`)}</section>`;
+    ${foot(R.ran ? (blockN ? '「반영」을 누르면 그 쪽만 다시 만들고 다시 점검합니다.' : '') : '내보내기 전에 원고 대조·규격 점검이 자동으로 먼저 돕니다.', `<button type="button" class="primary big" data-act="export" ${made ? '' : 'disabled'}>${R.ran && !blockN ? '내보내기' : '점검하고 내보내기'}</button>`)}</section>`;
 }
 function boardHtml(){ return D.ms.pages.map(p => { const P = D.pages[p.n]; const iss = P?.sc?.issues || []; const e = iss.filter(i => i.lv === 'err').length, w = iss.length - e;
   return `<button type="button" class="pg" data-act="sel" data-n="${p.n}" aria-current="${D.sel === p.n}"><div class="pv">${P?.url ? `<img alt="${p.n}쪽" src="${P.url}">` : '<span class="spin">만드는 중…</span>'}${e ? `<span class="tag c-err err">${e}</span>` : w ? `<span class="tag c-warn err">${w}</span>` : ''}</div>
@@ -347,17 +347,17 @@ async function preset(v){
 }
 
 // ── 7 검수·출력
-const OUT_FMTS = [['pptx', 'PowerPoint (.pptx)', '기본 산출물. 글상자·도형·표로 만들어 바로 고칠 수 있습니다.'], ['pdf', 'PDF (도련 포함)', '인쇄·제출용. 쪽 그림을 250dpi로 담습니다.'], ['png', 'PNG 이미지', '검토 공유용. 1·2·3배'], ['jpg', 'JPG 이미지', '가벼운 공유용'], ['svg', 'SVG', '검수 탭에서 직접 고치거나 피그마로'], ['xlsx', '엑셀', '배점 매핑표·보완 제안·검수 결과']];
+const OUT_FMTS = [['pptx', 'PowerPoint (.pptx)', '기본 산출물. 글상자·도형·표로 만들어 바로 고칠 수 있습니다.'], ['pdf', 'PDF (도련 포함)', '인쇄·제출용. 쪽 그림을 250dpi로 담습니다.'], ['png', 'PNG 이미지', '검토 공유용. 1·2·3배'], ['jpg', 'JPG 이미지', '가벼운 공유용'], ['svg', 'SVG', '검수 탭에서 직접 고치거나 피그마로'], ['xlsx', '엑셀', '배점 매핑표·보완 제안·점검 결과']];
 D.out = { fmts:new Set(['pptx', 'pdf']), scale:2, part:false, text:'' };
 function exportBlock(){
   const R = D.review; const iss = R.issues || []; const open = iss.filter(i => !i.ok && !R.acked[i.key]);
   const blockN = open.filter(i => i.lv === 'err').length;
-  return `<div class="blk"><h3>검수 · 내보내기</h3>
+  return `<div class="blk"><h3>내보내기</h3>
       <div class="fmts2">${OUT_FMTS.map(([k, name, how]) => `<label class="chk" title="${esc(how)}"><input type="checkbox" data-fmt="${k}" ${D.out.fmts.has(k) ? 'checked' : ''}> ${name}</label>`).join('')}</div>
       <div class="row" style="gap:8px 20px"><div class="opt">이미지 배율<div class="seg" role="group" aria-label="배율">${[1, 2, 3].map(s => `<button type="button" data-act="oscale" data-v="${s}" aria-pressed="${D.out.scale === s}">${s}배</button>`).join('')}</div></div>
       <div class="opt">범위<div class="seg" role="group" aria-label="범위"><button type="button" data-act="opart" data-v="0" aria-pressed="${!D.out.part}">전체</button><button type="button" data-act="opart" data-v="1" aria-pressed="${D.out.part}">일부</button></div>${D.out.part ? `<input type="text" id="oRange" value="${esc(D.out.text)}" placeholder="예: 3-12" style="width:110px">` : ''}</div></div>
       <p class="note">과업지시서 위반은 「확인함」으로 넘길 수 없습니다.</p>
-    ${R.ran ? `<div class="revh"><b>검수 결과 · ${R.at}</b> ${blockN ? `<span class="tag c-err">남은 오류 ${blockN}</span>` : '<span class="tag t-done">내보내기 가능</span>'}<button type="button" class="ghost" data-act="toReview">검수 탭에서 자세히</button></div>
+    ${R.ran ? `<div class="revh"><b>내보내기 전 점검 · ${R.at}</b> ${blockN ? `<span class="tag c-err">남은 오류 ${blockN}</span>` : '<span class="tag t-done">내보내기 가능</span>'}<button type="button" class="ghost" data-act="toReview">검수 탭에서 쪽별로 보기</button></div>
       ${iss.length ? `<ul class="revlist">${iss.map(i => `<li><span class="tag ${i.ok ? 't-done' : R.acked[i.key] ? 't-wait' : i.lv === 'err' ? 'c-err' : 'c-warn'}">${i.ok ? '고침' : R.acked[i.key] ? '확인함' : i.con ? '과업지시서' : i.lv === 'err' ? '오류' : '확인'}</span><span>${i.n ? `<b>${i.n}쪽</b> ` : ''}${esc(i.msg)}</span><span class="acts2">${!i.ok && i.n && i.fix ? `<button type="button" data-act="rfix" data-key="${esc(i.key)}">반영</button>` : ''}${!i.ok && !i.con && !R.acked[i.key] ? `<button type="button" class="ghost" data-act="rack" data-key="${esc(i.key)}">확인함</button>` : ''}</span></li>`).join('')}</ul>` : '<p class="muted">오류가 없습니다.</p>'}` : ''}
     ${msgHtml('out')}</div>`;
 }
@@ -380,7 +380,7 @@ function sysFromDesign(){
     pageNumber:L.pageNumber === '넣지 않음' ? 'none' : 'required', sourceLine:true, emptyBottom:r1(5 * MM + 14), rules:['디자인 탭에서 만든 쪽입니다.'], missing:[] };
 }
 async function handoff(){
-  busy('검수용 SVG를 만드는 중…', .1);
+  busy('점검할 쪽을 준비하는 중…', .1);
   const items = [];
   for(const pg of D.ms.pages){ const P = D.pages[pg.n] || await genPage(pg.n); P.svg ||= await sceneSvg(P.sc);
     items.push({ n:pg.n, kind:'svg', name:`디자인 ${pg.n}쪽`, text:P.svg, url:P.url, model:null, fromDesign:true }); }
@@ -389,7 +389,7 @@ async function handoff(){
   S.sysLocal = sysFromDesign(); S.sysOff = false; S.gov = buildGov(); S.sysConfirmed = true;
   for(const t of topicsInMs()){ const tk = D.guide.tk; const cc = iconColors(tk.iconTone, tk.color); const url = iconDataURL(iconFor(t), cc.fg, cc.bg); const b64 = url.split('base64,')[1]; if(b64){ const sig = await sha1(b64); if(sig) S.data.icons[sig] = '아이콘 · ' + t; } }
   renderCards(); renderSys(); renderHelp();
-  busy('검수 탭에서 원고·디자인 시스템과 대조하는 중…', .6);
+  busy('원고·디자인 시스템과 대조하는 중…', .6);
   await runAll({ ocr:false });
   busy(null);
 }
@@ -427,7 +427,7 @@ async function dExport(){
     for(const f of ['png', 'jpg', 'svg']) if(D.out.fmts.has(f)){ const zip = new JSZip(); for(let i=0;i<scenes.length;i++){ busy(`${f.toUpperCase()} 만드는 중… ${i + 1}/${scenes.length}`, (i + 1) / scenes.length); const sc = scenes[i];
         zip.file(`${base}_p${String(sc.n).padStart(2, '0')}.${f}`, f === 'svg' ? (D.pages[sc.n].svg ||= await sceneSvg(sc)) : await scenePng(sc, D.out.scale * 100 / 72, f === 'png' ? 'image/png' : 'image/jpeg')); }
       if(await dl(`${base}_${f.toUpperCase()}_${date}.zip`, await zip.generateAsync({ type:'blob' }))) saved.push(f.toUpperCase()); }
-    if(D.out.fmts.has('xlsx')){ if(await dl(`${base}_검수보고서_${date}.xlsx`, planXlsx(true))) saved.push('엑셀'); }
+    if(D.out.fmts.has('xlsx')){ if(await dl(`${base}_점검보고서_${date}.xlsx`, planXlsx(true))) saved.push('엑셀'); }
     D.review.exported = true; dmsg('out', 'info', saved.length ? `${saved.join(' · ')} 파일을 내려받았습니다 · ${scenes.length}쪽` : '내려받기를 취소했습니다.');
   }catch(e){ console.error(e); dmsg('out', 'err', e?.message === 'script' ? '내보내기 도구를 불러오지 못했습니다. 새로 고친 뒤 다시 시도해 주세요.' : '파일을 만들지 못했습니다. 다시 시도해 주세요.'); }
   busy(null); renderDesign();
@@ -438,7 +438,7 @@ function planXlsx(withReview){
   sheet('배점 매핑표', [['부문', '평가 항목', '배점', '원고 절', '쪽수', '밀도(점/쪽)'], ...items.map(it => { const ss = (D.mapping?.[it.id] || []).map(id => D.ms.sections.find(s => s.id === id)).filter(Boolean); const p = ss.reduce((a, s) => a + s.pages.length, 0); return [it.area, it.name, it.score, ss.map(s => s.title).join(', '), p, p ? r2(it.score / p) : '']; })]);
   sheet('페이지 플랜', [['쪽', '절', '배점', '상태', '인포그래픽'], ...D.ms.pages.map(pg => { const s = A.secs.find(x => x.id === pg.sec); return [pg.n, pg.divider ? '(장 표지)' : s?.title || '', s ? r2(s.score / s.pages.length) : '', s?.status || '', pg.divider ? '장 표지' : patternsForPage(pg.n).filter(x => x !== 'vs+').map(x => PATTERNS[x]?.name || x).join(', ')]; })]);
   const sg = D._sugg || suggestions(); sheet('보완 제안', [['유형', '내용', '결정'], ...sg.map(x => [x.type, x.text, D.plan.dec[x.id] === 'accept' ? '수용' : D.plan.dec[x.id] === 'hold' ? '보류' : ''])]);
-  if(withReview && D.review.ran) sheet('검수 결과', [['쪽', '수준', '내용', '처리'], ...D.review.issues.map(i => [i.n || '전체', i.lv === 'err' ? '오류' : '확인', i.msg, i.ok ? '고침' : D.review.acked[i.key] ? '확인함' : ''])]);
+  if(withReview && D.review.ran) sheet('점검 결과', [['쪽', '수준', '내용', '처리'], ...D.review.issues.map(i => [i.n || '전체', i.lv === 'err' ? '오류' : '확인', i.msg, i.ok ? '고침' : D.review.acked[i.key] ? '확인함' : ''])]);
   return new Blob([XLSX.write(wb, { bookType:'xlsx', type:'array' })]);
 }
 
