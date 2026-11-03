@@ -158,6 +158,7 @@ function itemsFromTables(tables){
     const sc = H.findIndex(c => /배\s*점/.test(c)) >= 0 ? H.findIndex(c => /배\s*점/.test(c)) : H.findIndex(c => /점\s*수/.test(c));
     let nc = H.findIndex((c, i) => i !== sc && /세부/.test(c)); if(nc < 0) nc = H.findIndex((c, i) => i !== sc && /평가\s*항목|항\s*목|내\s*용|요\s*소/.test(c)); if(nc < 0) nc = sc - 1;
     let ac = H.findIndex((c, i) => i !== sc && i !== nc && /부\s*문|구\s*분|분\s*야|영\s*역|대\s*항목/.test(c));
+    const kc = H.findIndex((c, i) => i !== sc && i !== nc && /^(번호|no\.?|순번|항목번호|연번)$/i.test(c.replace(/\s/g, '')));
     let area = '', got = 0;
     for(const r of rows.slice(h + 1)){
       const sv = String(r[sc] ?? '').replace(/점/g, '').trim(); const score = parseFloat(sv);
@@ -165,7 +166,8 @@ function itemsFromTables(tables){
       const name = (r[nc] || '').trim();
       if(!(score > 0) || /^(합\s*계|총\s*계|계|소\s*계|총\s*점)$/.test(name.replace(/\s/g,'')) || (!name && /합|계/.test(area))) continue;
       if(!name) continue;
-      out.push({ id:uid('i'), area, name, score, page:T.page, quote:r.filter(Boolean).join(' | ').slice(0, 120) }); got++;
+      const pm = name.match(/^(\d{1,2}(?:[-.]\d{1,2})?)[.)]?\s+(.+)$/); const code = (kc >= 0 && /^\d{1,2}([-.]\d{1,2})?$/.test((r[kc] || '').trim()) ? r[kc].trim() : pm ? pm[1] : '') || null;
+      out.push({ id:uid('i'), area, name:pm ? pm[2].trim() : name, code, score, page:T.page, quote:r.filter(Boolean).join(' | ').slice(0, 120) }); got++;
     }
     if(got) break;
   }
@@ -471,27 +473,30 @@ function slideToPage(n, shapes, W, H){
 }
 // 문단 → 소제목 묶음(□ 머리 + ○ 항목 + - 세부)
 function structure(pg){
-  const subs = []; let cur = null, lead = [], conc = null;
+  const subs = []; let cur = null, lead = [], concs = [];
   const open = head => { cur = { head, items:[], tables:[] }; subs.push(cur); };
   const bl = pg.blocks;
   for(let i=0;i<bl.length;i++){
     const b = bl[i];
     if(b.k === 'table'){ if(!cur) open(null); cur.tables.push(b.rows); continue; }
     const t = b.text, nx = bl[i+1];
-    if(CONC_MK.test(t) && i >= bl.length - 2){ conc = stripMk(t.replace(CONC_MK, '')); continue; }
+    // ⇒ 결론: 쪽 끝에 몰려 있는 ⇒ 줄(뒤에 ⇒·표만 남은 경우)을 모두 모음
+    if(CONC_MK.test(t) && bl.slice(i + 1).every(x => x.k === 'table' || CONC_MK.test(x.text) || SUB_MK.test(x.text))){ concs.push(stripMk(t.replace(CONC_MK, ''))); continue; }
+    if(concs.length && SUB_MK.test(t)){ concs[concs.length - 1] += ' — ' + stripMk(t); continue; }
     const mk = (b.bu && b.bu !== '#') ? b.bu : (t.match(/^\s*(\S)/) || [])[1];
     const isHead = HEAD_MK.test(t) || (b.bu && /[□■◆◇▣◈▶►]/.test(b.bu)) || (!ITEM_MK.test(t) && !SUB_MK.test(t) && !NOTE_MK.test(t) && b.lvl === 0 && t.length <= 44 && nx && nx.k === 'p' && (ITEM_MK.test(nx.text) || SUB_MK.test(nx.text) || nx.lvl > 0) && !/[.다]$/.test(t));
     if(isHead){ open(stripMk(t)); continue; }
     let lvl = ITEM_MK.test(t) || (b.bu && /[○●◦•▪]/.test(b.bu)) ? 1 : SUB_MK.test(t) || (b.bu && /[\-–·∙ㆍ]/.test(b.bu)) ? 2 : NOTE_MK.test(t) ? 3 : (b.lvl > 0 ? Math.min(2, b.lvl) : 1);
     const text = NOTE_MK.test(t) ? t.trim() : stripMk(t);
     if(!text) continue;
-    if(!cur && lvl === 1 && !ITEM_MK.test(t) && t.length > 30 && !subs.length){ lead.push(text); continue; }
+    // 헤드 메시지: 첫 소제목 앞의 기호 없는 문장(10자 이상)
+    if(!cur && lvl === 1 && !ITEM_MK.test(t) && !SUB_MK.test(t) && !NOTE_MK.test(t) && !b.bu && t.length >= 10 && !subs.length && lead.length < 2){ lead.push(text); continue; }
     if(!cur) open(null);
-    if(lvl >= 2 && cur.items.length){ (cur.items[cur.items.length-1].kids ||= []).push({ text, note:lvl === 3 }); }
+    if(lvl === 2 && cur.items.length && !cur.items[cur.items.length-1].note){ (cur.items[cur.items.length-1].kids ||= []).push({ text, note:false }); }
     else cur.items.push({ text, kids:[], note:lvl === 3, num:b.bu === '#' });
     void mk;
   }
-  return { lead, subs:subs.filter(s => s.head || s.items.length || s.tables.length), conc };
+  return { lead, subs:subs.filter(s => s.head || s.items.length || s.tables.length), conc:concs[0] || null, concs };
 }
 const ROMAN = 'ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ';
 function secKey(t){ return String(t || '').replace(/[(（]\s*(계속|續|cont\.?|\d+\s*\/\s*\d+)\s*[)）]/gi, '').replace(/\s*[-–]\s*\d+\s*$/, '').replace(/\s+/g, ' ').trim(); }
