@@ -44,7 +44,7 @@ function renderBanner(){
   h += `<button type="button" class="ghost more" data-act="conOpen" aria-expanded="${!!D.conOpen}">${D.conOpen ? '접기' : '조항 보기'}</button>`;
   if(D.conOpen){
     h += '<div class="conlist">' + (D.rfp?.cons || []).map(c => `<div class="ci"><span class="tag ${c.status === 'ok' ? 't-done' : c.status === 'off' ? 't-wait' : 'c-warn'}">${c.status === 'ok' ? '잠금' : c.status === 'off' ? '해당 없음' : '확인 필요'}</span>
-      <span><b>${esc(c.label)}</b> <q>${esc(c.quote || '직접 추가')}</q></span>
+      <span><b>${esc(c.label)}</b> <q>${esc(c.quote || '직접 추가')}</q>${c.src && (D.rfp?.docs || []).length > 1 ? ` <span class="muted" style="font-size:11.5px">— ${esc(c.src)}</span>` : ''}</span>
       <span class="row" style="gap:4px"><span class="pg">${c.page ? c.page + '쪽' : ''}</span>${c.status !== 'ok' ? `<button type="button" data-act="conOk" data-id="${c.id}">확정</button>` : ''}${c.status !== 'off' ? `<button type="button" class="ghost" data-act="conOff" data-id="${c.id}">해당 없음</button>` : ''}</span></div>`).join('')
       + `<form class="conadd" id="conAdd"><span class="muted">직접 추가</span><select id="caKind">${Object.entries(CON_KINDS).filter(([k]) => k !== 'other').map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('')}<option value="other">기타 주의</option></select><input type="text" id="caVal" placeholder="값 (예: 11, 60, A4)" style="width:120px"><button type="submit">추가</button></form>`
       + '<p class="note">잠금 항목은 디자인 시스템의 하한·상한이 되고, 검수 탭 검사 기준에도 들어갑니다. 「글자 줄이기」를 눌러도 잠금 아래로는 내려가지 않습니다.</p></div>';
@@ -85,19 +85,20 @@ function dropZone(id, label, fmts, accept, multi){ return `<label class="drop" i
 function P1(){
   const R = D.rfp, M = D.ms, A = D.assets;
   let rf = '';
-  if(R && R.name !== '직접 입력'){ const tot = R.items.reduce((a, i) => a + i.score, 0);
+  if(R && R.docs?.length){ const tot = R.items.reduce((a, i) => a + i.score, 0);
+    const docList = `<div class="rfpdocs">${R.docs.map(d => `<div class="rfpdoc"><span class="tag ${d.kind === '제안요청서' ? 't-done' : 't-wait'}">${esc(d.kind || '문서')}</span><span class="fname" title="${esc(d.name)}">${esc(d.name)}</span><span class="muted">${d.mode === 'score' && d.items.length ? `배점 항목 ${d.items.length}` : d.items.length ? `${d.basis === 'criteria' ? '평가 항목' : '요구사항'} ${d.items.length}` : '평가 내용 없음'} · 조항 ${d.cons.length}${R.itemsFrom === d.name && R.docs.length > 1 ? ` · <b>${R.mode === 'score' ? '배점표 사용' : '이 문서 기준'}</b>` : ''}</span><button type="button" class="ghost" data-act="rmRfpDoc" data-name="${esc(d.name)}" aria-label="${esc(d.name)} 빼기">×</button></div>`).join('')}</div>`;
     const consNote = `<div class="note">제약 조항 ${R.cons.length}개${R.cons.filter(c => c.status === 'check').length ? ` · 확인 필요 ${R.cons.filter(c => c.status === 'check').length}개는 위 배너에서 확정하세요` : ''}${R.by === 'claude' ? ' · Claude가 읽음' : ' · 문서에서 직접 찾음'}</div>`;
     if(R.mode === 'derived'){ const multiArea = new Set(R.items.map(i => i.area)).size > 1; const area1 = !multiArea && R.items[0]?.area; const BN = { criteria:'평가 항목(배점 없음)', req:'과업 요구사항', claude:'과업 요구사항' };
-      rf = `<div class="xcard ${R.itemsOk ? 'ok' : ''}"><div class="xh"><b>${BN[R.basis] || '요구사항'} ${R.items.length}개 · 중요도 순</b><span class="fname">${esc(R.name)}</span><button type="button" class="ghost" data-act="rmRfp">빼기</button></div>
-        <div class="msg info">배점표가 없어, 발주처가 요구하는 사항을 ${R.basis === 'criteria' ? '평가 항목별로' : '과업별로'} 묶고 문서 근거(반드시·중점·특히 같은 강조, 요구 문장 수, 반복 언급, 평가 방법의 중점 언급)로 중요도를 매겼습니다. 중요도는 배점처럼 도식 밀도와 샘플 순서를 정합니다.</div>
+      rf = `<div class="xcard ${R.itemsOk ? 'ok' : ''}"><div class="xh"><b>${BN[R.basis] || '요구사항'} ${R.items.length}개 · 중요도 순</b><button type="button" class="ghost" data-act="rmRfp">모두 빼기</button></div>${docList}
+        <div class="msg info">배점표가 없어, 발주처가 요구하는 사항을 ${R.basis === 'criteria' ? '평가 항목별로' : '과업별로'} 묶고 문서 근거(반드시·중점·특히 같은 강조, 요구 문장 수, 반복 언급, 평가 방법의 중점 언급)로 중요도를 매겼습니다. 중요도는 배점처럼 도식 밀도와 샘플 순서를 정합니다.${R.docs.some(d => d.kind === '제안요청서') ? '' : ' <b>배점표는 보통 제안요청서에 있으니, 있다면 함께 올려 주세요.</b>'}</div>
         <div class="tablewrap" style="max-height:260px"><table><thead><tr><th>요구사항</th><th>중요도</th><th class="n">비중</th><th>근거</th><th></th></tr></thead><tbody>${[...R.items].sort((a, b) => b.w - a.w).map(i => { const q = (i.quote || '').replace(/^[○●◦·•\-–]\s*/, ''); return `<tr><td><b>${esc(i.name)}</b>${multiArea ? ` <span class="muted" style="font-size:11.5px">${esc(i.area)}</span>` : ''}${q ? `<div class="muted" style="font-size:11.5px">${esc(q.slice(0, 70))}${q.length > 70 ? '…' : ''}</div>` : ''}</td>
           <td><select data-tier="${i.id}" aria-label="${esc(i.name)} 중요도">${['상', '중', '하'].map(t => `<option ${tierOf(i.w) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td><td class="n">${Math.round(i.score)}%</td><td class="muted" style="font-size:12px">${esc(i.why || '')}</td>
           <td><button type="button" class="ghost" data-act="rmItem" data-id="${i.id}" aria-label="${esc(i.name)} 빼기">×</button></td></tr>`; }).join('')}</tbody></table></div>
         <div class="row">${R.itemsOk ? '<span class="tag t-done">중요도 확인함</span>' : '<span class="muted" style="font-size:12.5px">중요도가 맞나요? 틀린 것은 상·중·하를 바꾸거나 빼세요.</span><button type="button" data-act="itemsOk">맞아요</button>'}</div>${consNote}</div>`; }
-    else rf = `<div class="xcard ${R.itemsOk ? 'ok' : ''}"><div class="xh"><b>평가 항목 ${R.items.length}개 · ${r1(tot)}점</b><span class="fname">${esc(R.name)}</span><button type="button" class="ghost" data-act="rmRfp">빼기</button></div>`
+    else rf = `<div class="xcard ${R.itemsOk ? 'ok' : ''}"><div class="xh"><b>${R.items.length ? `평가 항목 ${R.items.length}개 · ${r1(tot)}점` : '평가 항목 없음'}</b><button type="button" class="ghost" data-act="rmRfp">모두 빼기</button></div>${docList}`
       + (R.items.length ? `<div class="tablewrap" style="max-height:220px"><table><thead><tr><th>부문</th><th>평가 항목</th><th class="n">배점</th></tr></thead><tbody>${R.items.map(i => `<tr><td>${esc(i.area)}</td><td>${esc(i.name)}</td><td class="n">${r1(i.score)}</td></tr>`).join('')}</tbody></table></div>
         <div class="row">${R.itemsOk ? '<span class="tag t-done">배점표 확인함</span>' : '<span class="muted" style="font-size:12.5px">배점표가 맞나요?</span><button type="button" data-act="itemsOk">맞아요</button>'}</div>`
-        : '<div class="msg warn">배점표도, 대행사에게 요구하는 과업 내용도 찾지 못했습니다. 모든 절을 같은 밀도로 다룹니다. 스캔한 PDF라면 글자를 읽을 수 있는 PDF·HWPX·DOCX로 올려 주세요.</div>')
+        : `<div class="msg warn">배점표도, 대행사에게 요구하는 과업 내용도 찾지 못했습니다. 모든 절을 같은 밀도로 다룹니다. ${R.docs.some(d => d.kind === '제안요청서') ? '스캔한 PDF라면 글자를 읽을 수 있는 PDF·HWPX·DOCX로 올려 주세요.' : '배점표는 보통 제안요청서에 있습니다. 제안요청서도 함께 올려 주세요.'}</div>`)
       + consNote + '</div>'; }
   else rf = `<div class="note">배점표가 있으면 그대로 따르고, 없으면 대행사에게 요구하는 과업 내용으로 중요도를 정합니다. 과업지시서가 없으면 모든 절을 같은 밀도로 다룹니다.</div>`;
   let ms = '';
@@ -119,7 +120,7 @@ function P1(){
   return `<section class="dpanel">${phead('자료 올리기', '가진 파일을 칸에 끌어다 놓기만 하면 됩니다. 원고는 꼭 필요하고, 나머지는 없어도 진행됩니다.')}<p class="note" data-vault-note>${Vault.noteHtml()}</p>
     ${D.restored && !M ? `<div class="msg info">저장된 프로젝트(${esc(D.restored)})를 불러왔습니다. 원고 파일을 다시 올리면 이어서 작업합니다. 올린 파일은 저장하지 않습니다.</div>` : ''}
     <div class="dcols">
-      <div class="dcol"><h3>과업지시서 <span class="pill">선택</span></h3><p class="hint2">과업지시서·제안요청서·입찰 공고</p>${dropZone('rfp', '과업지시서 선택', 'PDF·HWPX·DOCX', '.pdf,.hwpx,.docx,.txt,.hwp')}${msgHtml('rfp')}${rf}</div>
+      <div class="dcol"><h3>과업지시서·제안요청서 <span class="pill">선택</span></h3><p class="hint2">과업지시서·제안요청서·입찰 공고를 함께 올리면 같이 읽습니다</p>${dropZone('rfp', '파일 선택 (여러 개)', 'PDF·HWPX·DOCX', '.pdf,.hwpx,.docx,.txt,.hwp', true)}${msgHtml('rfp')}${rf}</div>
       <div class="dcol"><h3>원고 <span class="pill req">필수</span></h3><p class="hint2">주제별 원고. 원고 1쪽이 디자인 1쪽이 됩니다.</p>${dropZone('ms', '원고 선택', 'PPTX·DOCX·HWPX·PDF', '.pptx,.docx,.hwpx,.pdf,.txt,.hwp')}${msgHtml('ms')}${ms}</div>
       <div class="dcol"><h3>디자인 자료 <span class="pill">선택</span></h3><p class="hint2">그리드·레퍼런스·폰트를 한 번에. 종류는 Dana가 나눕니다.</p>${dropZone('assets', '디자인 자료 선택', 'PPTX·이미지·PDF·TTF·OTF', '.pptx,.png,.jpg,.jpeg,.webp,.pdf,.ttf,.otf,.ttc,.json,.svg,.woff,.woff2', true)}${da}</div>
     </div>${foot(okNext ? '' : '원고를 올리면 다음으로 갈 수 있습니다.', `<button type="button" class="primary big" data-act="go" data-k="2" ${okNext ? '' : 'disabled'}>다음: 디자인 시스템 →</button>`)}</section>`;
@@ -492,6 +493,7 @@ const ACT = {
   conOk:el => { const c = D.rfp.cons.find(x => x.id === el.dataset.id); if(c) c.status = 'ok'; afterConChange(); },
   conOff:el => { const c = D.rfp.cons.find(x => x.id === el.dataset.id); if(c) c.status = 'off'; afterConChange(); },
   rmRfp:() => { D.rfp = null; D.mapping = null; D._an = null; afterConChange(); },
+  rmRfpDoc:el => { const docs = (D.rfp?.docs || []).filter(d => d.name !== el.dataset.name); D.rfp = docs.length ? combineRfp(docs, D.rfp) : null; D.mapping = null; D._an = null; D._auto = null; if(D.gates.g1) D.gates.g2 = false; afterConChange(); },
   rmMs:() => { D.ms = null; resetProject(); Vault.drop('design:ms'); renderDesign(); renderBanner(); },
   itemsOk:() => { D.rfp.itemsOk = true; renderDesign(); saveSoon(); },
   rmItem:el => { D.rfp.items = D.rfp.items.filter(i => i.id !== el.dataset.id); if(D.mapping) delete D.mapping[el.dataset.id]; if(D.rfp.mode === 'derived') normDerived(D.rfp.items); afterItemChange(); },
@@ -537,7 +539,11 @@ function resetProject(){ D.gates = { g1:false, g2:false, g3:false }; D.mapping =
 async function takeFiles(id, files){
   dmsg(id);
   try{
-    if(id === 'rfp'){ busy(`과업지시서 「${files[0].name}」을 읽는 중…`, .3); D.rfp = await extractRfp(files[0]); D.mapping = null; D._an = null; D._auto = null; if(D.gates.g1) D.gates.g2 = false; }
+    if(id === 'rfp'){ const docs = [...(D.rfp?.docs || [])]; const notes = [];
+      for(const [k, f] of files.entries()){ busy(`「${f.name}」을 읽는 중… (${k + 1}/${files.length})`, .2 + .7 * k / files.length);
+        try{ const d = await extractRfp(f); const i = docs.findIndex(x => x.name === d.name); if(i >= 0) docs[i] = d; else docs.push(d); }catch(e){ console.error(e); notes.push(e?.user || `「${f.name}」을 읽지 못했습니다.`); } }
+      if(notes.length) dmsg('rfp', 'warn', notes.join(' '));
+      if(docs.length) D.rfp = combineRfp(docs, D.rfp); D.mapping = null; D._an = null; D._auto = null; if(D.gates.g1) D.gates.g2 = false; }
     else if(id === 'ms'){ busy(`원고 「${files[0].name}」을 읽는 중…`, .3); const ms = await parseManuscript(files[0]);
       if(!ms.pages.length || !ms.text.trim()) throw { user:`「${files[0].name}」에서 글자를 찾지 못했습니다.` };
       for(const p of ms.pages) for(const pic of p.pics){ const im = await loadImg(pic.url); pic.w = im?.naturalWidth || 4; pic.h = im?.naturalHeight || 3; }
@@ -565,7 +571,7 @@ let saveT = null;
 function saveSoon(){ clearTimeout(saveT); saveT = setTimeout(saveState, 1200); }
 async function saveState(){
   if(!W.ok() || !D.ms) return;
-  const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', itemsOk:!!D.rfp.itemsOk } : null,
+  const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', itemsFrom:D.rfp.itemsFrom || null, itemsOk:!!D.rfp.itemsOk, docs:(D.rfp.docs || []).map(d => ({ name:d.name, kind:d.kind, items:d.items, cons:d.cons, by:d.by, mode:d.mode, basis:d.basis, pages:d.pages })) } : null,
     grid:D.grid, mood:D.mood, colors:D.colors, roles:{ body:famOf(D.roles.body).label, title:famOf(D.roles.title).label, num:D.roles.num ? famOf(D.roles.num).label : null }, iconMap:D.iconMap,
     mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
     pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked };
@@ -575,7 +581,7 @@ async function loadState(){
   if(!W.ok()) return; let st = null; try{ st = await W.get('design/state'); }catch(e){} if(!st || st.v !== 1) return;
   if(D.ms) return;
   Object.assign(D, { grid:st.grid || null, mood:st.mood || 'navy', colors:st.colors || {}, iconMap:st.iconMap || {}, mapping:st.mapping || null, plan:st.plan || { pat:{}, dec:{} }, style:st.style || null, samples:st.samples || [] });
-  if(st.rfp) D.rfp = { ...st.rfp, pages:0 };
+  if(st.rfp){ D.rfp = { ...st.rfp, pages:0 }; if(!D.rfp.docs && D.rfp.name !== '직접 입력') D.rfp.docs = [{ name:D.rfp.name, kind:'과업지시서', items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', pages:0 }]; }
   D.restoredGates = st.gates; D.restoredGuide = st.guide; D.restoredPageOpt = st.pageOpt || {}; D.review.acked = st.acked || {};
   D.restored = `${st.msSig.name} · ${new Date(st.at).toLocaleDateString('ko-KR')}`; D.restoredSig = st.msSig; D.restoredRoles = st.roles;
   renderBanner(); renderDesign();

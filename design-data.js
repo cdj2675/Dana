@@ -316,15 +316,38 @@ async function extractRfp(file){
     }catch(e){ console.warn('rfp claude', e); }
   }
   if(!items.length && reqs.length){ items = normDerived(reqs); mode = 'derived'; } else basis = items.length ? 'score' : 'none';
-  // 같은 종류가 둘 이상이면 하나로(가장 엄격한 값)
+  for(const c of cons) c.src = file.name;
+  const head = (file.name + ' ' + (doc.pages[0]?.lines || []).slice(0, 6).join(' ')).replace(/\s/g, '');
+  const kind = /제안요청/.test(head) ? '제안요청서' : /과업지시|과업내용서/.test(head) ? '과업지시서' : /공고/.test(head) ? '입찰 공고' : '참고 문서';
+  return { name:file.name, kind, items, cons:mergeCons(cons), by, mode, basis, pages:doc.pages.length };
+}
+// 같은 종류가 둘 이상이면 하나로(확정된 것 우선, 같으면 가장 엄격한 값)
+function mergeCons(cons){
   const merged = [];
-  for(const c of cons){ const o = merged.find(x => x.kind === c.kind && x.kind !== 'other');
+  for(const c0 of cons){ const c = { ...c0 }; const o = merged.find(x => x.kind === c.kind && x.kind !== 'other');
     if(!o){ merged.push(c); continue; }
     if(o.status === 'ok' && c.status !== 'ok') continue; if(c.status === 'ok' && o.status !== 'ok'){ Object.assign(o, c); continue; }
     if(c.kind === 'font_min' || c.kind === 'font_min_figure'){ if(c.value > o.value) Object.assign(o, c); }
     else if(c.kind === 'pages_max'){ if(c.value < o.value) Object.assign(o, c); } }
-  return { name:file.name, items, cons:merged, by, mode, basis, pages:doc.pages.length };
+  return merged;
 }
+// 여러 문서(과업지시서 + 제안요청서 + 공고)를 하나로: 배점표가 있는 문서를 우선, 없으면 배점 없는 평가 항목 > Claude 요구사항 > 과업 요구사항
+function combineRfp(docs, prev){
+  const scored = docs.filter(d => d.mode === 'score' && d.items.length).sort((a, b) => b.items.length - a.items.length);
+  const rank = { criteria:3, claude:2, req:1 };
+  const der = docs.filter(d => d.mode === 'derived' && d.items.length).sort((a, b) => (rank[b.basis] || 0) - (rank[a.basis] || 0) || b.items.length - a.items.length);
+  const pick = scored[0] || der[0] || null;
+  const items = pick ? pick.items.map(i => ({ ...i })) : [];
+  // 배점 항목에 과업 내용(다른 문서의 요구사항)을 붙여 원고 절 연결을 돕기
+  if(scored[0]) for(const it of items){ let best = null, bv = .45; for(const d of der) for(const r of d.items){ const v = simText(it.name, r.name); if(v > bv){ bv = v; best = r; } } if(best && !it.detail) it.detail = best.detail || best.quote || ''; }
+  let cons = mergeCons(docs.flatMap(d => d.cons));
+  // 사용자가 확정·해당 없음으로 바꾼 것과 직접 추가한 조항은 유지
+  const was = new Map((prev?.cons || []).map(c => [c.kind + '|' + c.value + '|' + (c.src || ''), c.status]));
+  for(const c of cons){ const st = was.get(c.kind + '|' + c.value + '|' + (c.src || '')); if(st) c.status = st; }
+  cons = [...cons, ...(prev?.cons || []).filter(c => c.by === 'user')];
+  return { name:docs.map(d => d.name).join(' · '), docs, items, cons, by:docs.some(d => d.by === 'claude') ? 'claude' : 'auto', mode:pick?.mode || 'score', basis:pick ? pick.basis : 'none', itemsFrom:pick ? pick.name : null, pages:docs.reduce((a, d) => a + (d.pages || 0), 0) };
+}
+
 const con = kind => (D.rfp?.cons || []).find(c => c.kind === kind && c.status === 'ok');
 const conAny = kind => (D.rfp?.cons || []).find(c => c.kind === kind && c.status !== 'off');
 function locks(){
