@@ -132,17 +132,20 @@ function textBox(text, x, y, w, o){ const lines = wrap(text, w, o.role || 'body'
 
 // ───────────── 원고 문단의 형태 판별 → 인포그래픽 패턴 후보
 const PATTERNS = {
-  list:{ name:'불릿', big:false, kind:'card' }, cards:{ name:'카드', big:false, kind:'card' }, ltable:{ name:'라벨 표', big:false, kind:'table' },
+  list:{ name:'불릿', big:false, kind:'card' }, enum:{ name:'구분 카드', big:false, kind:'card' }, cards:{ name:'카드', big:false, kind:'card' }, ltable:{ name:'라벨 표', big:false, kind:'table' },
   table:{ name:'표', big:false, kind:'table' }, kpi:{ name:'KPI 타일', big:false, kind:'card' }, flow:{ name:'흐름', big:true, kind:'diagram' },
   cycle:{ name:'순환', big:true, kind:'diagram' }, hub:{ name:'허브', big:true, kind:'diagram' }, timeline:{ name:'타임라인', big:true, kind:'diagram' },
   vs:{ name:'VS 대비', big:true, kind:'diagram' },
 };
 const NUM_UNIT = /(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(%|명|대|건|톤|개소|개|회|일|시간|분|km|㎡|m2|억\s?원|만\s?원|천\s?원|원|곳|년|개월|배|점|t)(?![가-힣A-Za-z])/;
-const TIME_RE = /^((?:20)?\d{2,4}\s*년(?:\s*\d{1,2}\s*월)?|\d{1,2}\s*월|\d+\s*차\s*년도|\d+\s*분기|\d+\s*주\s*차|[상하]\s*반기|착수|중간|완료|준비|1단계|2단계|3단계)\s*[:：]?\s*/;
+const TIME_RE = /^(매일|매주|매월|매분기|매년|연도별|분기별?|반기별?|월\s*\d+\s*회|주\s*\d+\s*회|연\s*\d+\s*회|(?:20)?\d{2,4}\s*년(?:\s*\d{1,2}\s*월)?|\d{1,2}\s*월|\d+\s*차\s*년도|\d+\s*분기|\d+\s*주\s*차|[상하]\s*반기|착수|중간|완료|준비|1단계|2단계|3단계)\s*[:：]?\s*/;
 function stepsOf(sub){
   const its = sub.items.filter(i => !i.note);
   const lab = its.map(i => i.text.match(/^((?:\d+|[①-⑩])\s*단계|STEP\s*\d+|Step\s*\d+|단계\s*\d+|[①-⑩])\s*[:：.]?\s*/));
   if(its.length >= 3 && lab.filter(Boolean).length >= Math.ceil(its.length * .6)) return { steps:its.map((i, k) => lab[k] ? { label:lab[k][1].trim(), text:i.text.slice(lab[k][0].length).trim() } : { label:'', text:i.text }), rest:[], via:'items' };
+  // 「A, B, C 순으로/단계로 진행」 문장: 쉼표로 나눈 짧은 말들을 단계로(글자는 원고 그대로)
+  for(let k = 0; k < its.length; k++){ const m = its[k].text.match(/^(.*?)((?:[^,，]{2,18}[,，]\s*){2,6}[^,，]{2,18}?)\s*(?:의\s*)?(순으로|순서로|단계로|절차로|순서를\s*거쳐|과정으로)/);
+    if(m){ const parts = m[2].split(/[,，]\s*/).map(x => x.trim()).filter(Boolean); if(parts[0]){ const q = parts[0].replace(/^.*?[은는]\s+/, ''); if(q.length >= 2) parts[0] = q; } if(parts.length >= 3 && parts.every(p => p.length <= 18)) return { steps:parts.map(p => ({ label:'', text:p })), rest:its, via:'seq', keep:true }; } }
   const arr = its.findIndex(i => (i.text.match(/\s*(→|⇒|➔|➡|->)\s*/g) || []).length >= 2);
   if(arr >= 0){ const parts = its[arr].text.split(/\s*(?:→|⇒|➔|➡|->)\s*/).map(s => s.trim()).filter(Boolean);
     if(parts.length >= 3 && parts.length <= 8 && parts.every(p => p.length <= 24)) return { steps:parts.map(p => ({ label:'', text:p })), rest:its.filter((_, k) => k !== arr), via:'arrow' }; }
@@ -152,12 +155,16 @@ function timelineOf(sub){ const its = sub.items.filter(i => !i.note); if(its.len
   const m = its.map(i => i.text.match(TIME_RE)); if(m.filter(Boolean).length < Math.ceil(its.length * .7)) return null;
   return its.map((i, k) => m[k] ? { label:m[k][1].trim(), text:i.text.slice(m[k][0].length).trim() } : { label:'', text:i.text }); }
 function kpiOf(sub){ const its = sub.items.filter(i => !i.note); if(its.length < 2 || its.length > 6) return null;
-  const out = []; for(const i of its){ if(i.text.length > 36 || (i.kids || []).length) return null; const all = i.text.match(new RegExp(NUM_UNIT.source, 'g')) || []; if(all.length !== 1) return null;
+  const out = []; for(const i of its){ if(i.text.length > 52 || (i.kids || []).length) return null; const all = i.text.match(new RegExp(NUM_UNIT.source, 'g')) || []; if(all.length !== 1) return null;
     const m = i.text.match(NUM_UNIT); const label = (i.text.slice(0, m.index) + i.text.slice(m.index + m[0].length)).replace(/\s+/g, ' ').trim(); if(!label) return null;
     out.push({ value:m[1], unit:m[2].replace(/\s/g, ''), label, text:i.text }); }
   return out; }
 function labelPairs(sub){ const its = sub.items.filter(i => !i.note); if(its.length < 2) return null;
   const m = its.map(i => i.text.match(/^(.{1,16}?)(?<!\d)\s*[:：]\s*(?!\d)(.+)$/)); if(m.some(x => !x)) return null; return m.map(x => [x[1].trim(), x[2].trim()]); }
+function enumOf(sub){ const its = sub.items.filter(i => !i.note);
+  for(const it of its){ const ms = [...it.text.matchAll(/([가-힣A-Za-z0-9·\s]{2,16}?)\s*\(([^()]{2,40})\)/g)];
+    if(ms.length >= 3 && ms.length <= 6){ const parts = ms.map(m => ({ title:m[1].replace(/^[,，\s]+|^(및|또는|와|과)\s+/g, '').trim(), desc:m[2].trim() })); if(parts.every(p => p.title.length >= 2 && p.title.length <= 14)) return { item:it, parts }; } }
+  return null; }
 function hubOk(sub){ const its = sub.items.filter(i => !i.note); return !!sub.head && its.length >= 3 && its.length <= 6 && its.every(i => i.text.length <= 28 && !(i.kids || []).length) &&
   (/(위한|위해|통한|향한|실현|달성)/.test(sub.head) && /(\d|세|네|다섯|여섯)\s*(가지|대|개)|전략|과제|방향|목표|원칙/.test(sub.head)); }
 const CYCLE_RE = /순환|환류|PDCA|반복|재점검|다시\s*점검|피드백/;
@@ -166,6 +173,7 @@ function patCandidates(sub){
   if(sub.tables.length && !its.length) c.push(['table', 100]);
   const st = stepsOf(sub); if(st){ const cyc = CYCLE_RE.test((sub.head || '') + ' ' + its.map(i => i.text).join(' ')); c.push([cyc ? 'cycle' : 'flow', cyc ? 95 : 92]); if(cyc) c.push(['flow', 70]); }
   if(timelineOf(sub)) c.push(['timeline', 90]);
+  if(enumOf(sub)) c.push(['enum', 84]);
   if(kpiOf(sub)) c.push(['kpi', 86]);
   if(hubOk(sub)) c.push(['hub', 84]);
   // 카드는 「제목 : 설명」이거나 짧은 구절일 때만. 「~함.」 같은 긴 문장은 개조식 목록으로
@@ -276,7 +284,7 @@ function blkList(items, C, W){
 function splitTitle(t){ const m = t.match(/^(.{2,22}?)(?<!\d)\s*[:：]\s*(?!\d)(.+)$/); if(m) return { title:m[1].trim(), desc:m[2].trim() }; if(t.length <= 16) return { title:t, desc:'' }; return { title:'', desc:t }; }
 const check = (x, y, c) => [E.line(x, y + 3.2, x + 2.6, y + 5.8, { stroke:c, sw:1.4 }), E.line(x + 2.6, y + 5.8, x + 7.4, y, { stroke:c, sw:1.4 })];
 function blkCards(items, C, W){
-  const its = items.filter(i => !i.note); const n = its.length; const cols = n <= 2 ? n : n === 4 ? 2 : 3; const gap = 10;
+  const its = items.filter(i => !i.note); const n = its.length; const short = its.every(i => i.text.length <= 24 && !(i.kids || []).length); const cols = n <= 2 ? n : n === 4 ? (short ? 4 : 2) : 3; const gap = 10;
   const cw = (W - gap * (cols - 1)) / cols, pad = 12 + 2 * (C.air || 0), A = C.st.card !== 'B';
   const parts = its.map(i => ({ ...splitTitle(i.text), kids:i.kids || [], topic:topicOf(i.text) }));
   const icons = C.useIcons && parts.filter(p => p.topic).length >= Math.ceil(n / 2); const isz = 24; const ts = C.fs + 1;
@@ -478,7 +486,8 @@ function blocksForSub(sub, pat, C, W, num){
   if(pat === 'hub' && hubOk(sub)){ out.push(...sbt(), blkHub(sub.head, its, C, W)); tail(); return out; }
   out.push(...sbt());
   if(pat === 'table' && !its.length){ tail(); return out; }
-  if(pat === 'flow' || pat === 'cycle'){ const st = stepsOf(sub); if(st){ out.push(blkFlow(st.steps, C, W, pat === 'cycle')); if(st.rest.filter(i => !i.note).length) out.push(blkList(st.rest.filter(i => !i.note), C, W)); } else if(its.length) out.push(blkList(its, C, W)); }
+  if(pat === 'enum'){ const en = enumOf(sub); out.push(blkList(its, C, W)); if(en) out.push(blkCards(en.parts.map(p => ({ text:`${p.title} : ${p.desc}`, kids:[] })), C, W)); tail(); return out; }
+  if(pat === 'flow' || pat === 'cycle'){ const st = stepsOf(sub); if(st && st.keep){ out.push(blkList(its, C, W)); out.push(blkFlow(st.steps, C, W, pat === 'cycle')); tail(); return out; } if(st){ out.push(blkFlow(st.steps, C, W, pat === 'cycle')); if(st.rest.filter(i => !i.note).length) out.push(blkList(st.rest.filter(i => !i.note), C, W)); } else if(its.length) out.push(blkList(its, C, W)); }
   else if(pat === 'timeline'){ const tl = timelineOf(sub); out.push(tl ? blkTimeline(tl, C, W) : blkList(its, C, W)); }
   else if(pat === 'kpi'){ const k = kpiOf(sub); out.push(k ? blkKpi(k, C, W) : blkList(its, C, W)); }
   else if(pat === 'ltable'){ const lp = labelPairs(sub); out.push(lp ? blkTable(lp, C, W, true) : blkList(its, C, W)); }
@@ -603,7 +612,7 @@ function layoutOnce(pg, tk0, style, level, pats, g){
   const floor = L.figMin || L.bodyMin; if(floor && used.some(s => s < floor - .01)) issues.push({ id:'font', lv:'err', con:true, msg:`과업지시서 최소 글자 크기보다 작은 글자가 있습니다.` });
   // 완성도 지표: 본문 사용률, 본문 영역 글자 크기 단계, 구조화 요소, 헤드 메시지, 평가 항목 연결, 원고 글자 수
   const kinds = new Set(secs.flatMap(s => s.blocks.map(b => b.kind)));
-  const bodySizes = new Set(); for(const gr of groups) if(/^part-\d+$/.test(gr.id)) for(const e of gr.els) if(e.t === 'text' && !e.skip) bodySizes.add(r1(e.size)); else if(e.t === 'table') bodySizes.add(r1(e.size));
+  const bodySizes = new Set(); for(const gr of groups) if(/^part-\d+$/.test(gr.id)) for(const e of gr.els) if(e.t === 'text' && !e.skip && e.role !== 'num') bodySizes.add(r1(e.size)); else if(e.t === 'table') bodySizes.add(r1(e.size));
   const chars = [...pg.st.lead, ...subs.flatMap(s => [s.head || '', ...s.items.flatMap(i => [i.text, ...(i.kids || []).map(k => k.text)]), ...s.tables.flat(2)]), ...(pg.st.concs || [])].join('').replace(/\s/g, '').length;
   const m = { use:avail > 0 ? (bottom - bodyTop) / avail : 1, steps:bodySizes.size, struct:['table','cards','flow','hub','kpi','timeline','vs','photo','notes'].some(k => kinds.has(k)), msg:!!pg.st.lead.length, sub:subs.some(s => s.head), evalOk:!!evalOf(pg), chars, body:tk.size.body };
   return { n:pg.n, w:W, h:H, bleed:G.bleed, bg:c.page, groups, issues, level, overflow, slack, m, pats:pats.filter(p => p !== 'vs+'), tk, style, fontStep:g.fontStep };
