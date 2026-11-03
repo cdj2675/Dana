@@ -182,7 +182,7 @@ function tokensJson(){
     history:D.guide?.history || [] };
 }
 function guideMd(){ const j = tokensJson(); const c = j.color;
-  return `# 디자인 가이드 v${j.version}\n\n${j.mood} 무드 · ${j.date}\n\n## 페이지\n- 크기 ${r1(j.page.size.w / MM)}×${r1(j.page.size.h / MM)}mm, 도련 ${r1(j.page.bleed / MM)}mm${j.page.binding ? `, ${j.page.binding}` : ''}\n- 여백 좌 ${r1(j.page.margin.left / MM)} · 우 ${r1(j.page.margin.right / MM)} · 위 ${r1(j.page.margin.top / MM)} · 아래 ${r1(j.page.margin.bottom / MM)}mm\n- 본문 영역 x ${j.page.body.x.join('~')}pt, y ${j.page.body.y.join('~')}pt\n\n## 글꼴\n- 본문 ${j.font.body.family} ${j.font.body.size}pt, 줄 간격 ${j.font.body.lineHeight}\n- 제목 ${j.font.title.family} ${j.font.title.size}pt · 소제목 ${j.font.subtitle.size}pt · 표 ${j.font.table.size}pt · 캡션 ${j.font.caption.size}pt\n${j.font.number ? `- 숫자 강조 ${j.font.number.family} (${j.font.number.use})\n` : ''}${j.font.min.body ? `- 과업지시서 잠금: 본문 ${j.font.min.body}pt 이상\n` : ''}\n## 색\n- 주색 ${c.primary.join(' / ')}\n- 바탕 ${c.background.join(' / ')} · 괘선 ${c.line}\n- 포인트 ${c.point} · 강조 ${c.accent} · 글자 ${c.ink.join(' / ')}\n\n## 컴포넌트\n- 머리틀 ${({ band:'짙은 띠 + 평가 번호 배지 + 평가 항목 목록', tag:'평가 꼬리표 + 절 제목 상자', rule:'평가 꼬리표 + 절 제목 + 선' })[j.component.header] || j.component.header}\n- 쪽 구성: 머리틀 → 헤드 메시지 → 소제목별 본문·도식 → 사진 → 핵심 실행 사항 → 자료 출처 → 쪽 번호 · 모서리 ${j.component.radius}pt\n- 소제목 ${j.component.subtitle}안 · 카드 ${j.component.card}안 · 표 ${j.component.table}안 · 흐름 ${j.component.flow}안 · 허브 ${j.component.hub}안 · KPI ${j.component.kpi}안\n\n## 아이콘\n- ${j.icon.style} · 굵기 ${j.icon.weight} · ${j.icon.tone}\n${Object.entries(j.icon.topics).map(([t, i]) => `- ${t}: ${i}`).join('\n')}\n\n## 규칙\n- 그림자 쓰지 않음\n- 쪽마다 큰 도식 1개\n- 본문 아래 빈 공간 ${j.rules.bottomGapMaxMm}mm 이하\n${j.rules.blind ? '- 블라인드 평가: 회사명·로고·인물 노출 금지\n' : ''}${j.rules.pagesMax ? `- 총 ${j.rules.pagesMax}쪽 이내\n` : ''}\n## 변경 이력\n${j.history.map(h => `- ${h.date} v${h.v} ${h.note}`).join('\n')}\n`; }
+  return `# 디자인 가이드 v${j.version}\n\n${j.mood} 무드 · ${j.date}\n\n## 페이지\n- 크기 ${r1(j.page.size.w / MM)}×${r1(j.page.size.h / MM)}mm, 도련 ${r1(j.page.bleed / MM)}mm${j.page.binding ? `, ${j.page.binding}` : ''}\n- 여백 좌 ${r1(j.page.margin.left / MM)} · 우 ${r1(j.page.margin.right / MM)} · 위 ${r1(j.page.margin.top / MM)} · 아래 ${r1(j.page.margin.bottom / MM)}mm\n- 본문 영역 x ${j.page.body.x.join('~')}pt, y ${j.page.body.y.join('~')}pt\n\n## 글꼴\n- 본문 ${j.font.body.family} ${j.font.body.size}pt, 줄 간격 ${j.font.body.lineHeight}\n- 제목 ${j.font.title.family} ${j.font.title.size}pt · 소제목 ${j.font.subtitle.size}pt · 표 ${j.font.table.size}pt · 캡션 ${j.font.caption.size}pt\n${j.font.number ? `- 숫자 강조 ${j.font.number.family} (${j.font.number.use})\n` : ''}${j.font.min.body ? `- 과업지시서 잠금: 본문 ${j.font.min.body}pt 이상\n` : ''}\n## 색\n- 주색 ${c.primary.join(' / ')}\n- 바탕 ${c.background.join(' / ')} · 괘선 ${c.line}\n- 포인트 ${c.point} · 강조 ${c.accent} · 글자 ${c.ink.join(' / ')}\n\n## 컴포넌트\n- 머리틀 ${({ panel:'옅은 바탕 머리틀', plain:'흰 바탕 머리틀', line:'무채색 머리틀' })[j.component.header] || j.component.header}\n- 머리틀: 평가 줄(번호 | 평가 항목 · 배점) → 절 제목 → 배점 비중 막대\n- 쪽 구성: 머리틀 → 헤드 메시지 → 소제목별 본문·도식 → 사진 → 핵심 실행 사항 → 자료 출처 → 쪽 번호 · 모서리 ${j.component.radius}pt\n- 소제목 ${j.component.subtitle}안 · 카드 ${j.component.card}안 · 표 ${j.component.table}안 · 흐름 ${j.component.flow}안 · 허브 ${j.component.hub}안 · KPI ${j.component.kpi}안\n\n## 아이콘\n- ${j.icon.style} · 굵기 ${j.icon.weight} · ${j.icon.tone}\n${Object.entries(j.icon.topics).map(([t, i]) => `- ${t}: ${i}`).join('\n')}\n\n## 규칙\n- 그림자 쓰지 않음\n- 쪽마다 큰 도식 1개\n- 본문 아래 빈 공간 ${j.rules.bottomGapMaxMm}mm 이하\n${j.rules.blind ? '- 블라인드 평가: 회사명·로고·인물 노출 금지\n' : ''}${j.rules.pagesMax ? `- 총 ${j.rules.pagesMax}쪽 이내\n` : ''}\n## 변경 이력\n${j.history.map(h => `- ${h.date} v${h.v} ${h.note}`).join('\n')}\n`; }
 
 // ── 3 자료 분석
 async function runMapping(force){
@@ -310,21 +310,35 @@ function P6(){
   const errs = ns.filter(n => D.pages[n]?.sc?.issues.some(i => i.lv === 'err')).length;
   const R = D.review; const blockN = (R.issues || []).filter(i => !i.ok && !R.acked[i.key] && i.lv === 'err').length;
   return `<section class="dpanel">${phead('전체 생성', '확정한 스타일로 모든 쪽을 만들었습니다. 고칠 쪽만 눌러 프리셋으로 고치고, 맨 아래에서 내보내세요.', `<div class="row"><span class="muted" style="font-size:13px">${made}/${ns.length}쪽${errs ? ` · <span class="tag c-err">확인 ${errs}쪽</span>` : ''}</span><button type="button" class="ghost" data-act="regenAll" ${D.gen.running ? 'disabled' : ''}>전체 다시 만들기</button></div>`)}
+    <div id="dQuality">${qualityHtml()}</div>
     <div class="board" id="dBoard">${boardHtml()}</div>
     <div id="dDetail">${D.sel ? detailHtml(D.sel) : ''}</div>
     ${exportBlock()}
     ${foot(R.ran ? (blockN ? '「반영」을 누르면 그 쪽만 다시 만들고 다시 점검합니다.' : '') : '내보내기 전에 원고 대조·규격 점검이 자동으로 먼저 돕니다.', `<button type="button" class="primary big" data-act="export" ${made ? '' : 'disabled'}>${R.ran && !blockN ? '내보내기' : '점검하고 내보내기'}</button>`)}</section>`;
 }
+// 완성도 기준 요약: 통과 쪽 수와 미달 항목별 쪽
+function qualityHtml(){
+  const ps = D.ms.pages.filter(p => !p.divider).map(p => D.pages[p.n]?.sc?.quality ? { n:p.n, q:D.pages[p.n].sc.quality } : null).filter(Boolean);
+  if(!ps.length) return '';
+  const passN = ps.filter(x => x.q.pass).length; const fails = {};
+  for(const x of ps) for(const it of x.q.items) if(!it.ok && it.must) (fails[it.name] ||= []).push(x.n);
+  const soft = {}; for(const x of ps) for(const it of x.q.items) if(!it.ok && !it.must) (soft[it.name] ||= []).push(x.n);
+  return `<div class="blk qbar"><div class="row" style="justify-content:space-between"><h3 style="margin:0">완성도 기준</h3><span class="tag ${passN === ps.length ? 't-done' : 'c-warn'}">${passN}/${ps.length}쪽 통과</span></div>
+    <p class="note">실제 제출본 2종에서 잰 최소선: 평가 항목 표시 · 헤드 메시지 · 표·도식·사진 1개 이상 · 본문 채움 70% 이상 · 넘침 없음. 배치로 맞출 수 있는 것은 Dana가 맞추고(여유 배치), 원고가 필요한 것은 아래에 남깁니다.</p>
+    ${Object.keys(fails).length ? `<ul class="qfails">${Object.entries(fails).map(([k, ns]) => `<li><b>${esc(k)}</b> <span class="muted">${ns.map(n => `<button type="button" class="linkbtn" data-act="sel" data-n="${n}">${n}쪽</button>`).join(' ')}</span></li>`).join('')}</ul>` : '<p class="note"><b>모든 쪽이 최소선을 넘었습니다.</b></p>'}
+    ${Object.keys(soft).length ? `<p class="note">참고: ${Object.entries(soft).map(([k, ns]) => `${esc(k)} 미달 ${ns.length}쪽`).join(' · ')}</p>` : ''}</div>`;
+}
 function boardHtml(){ return D.ms.pages.map(p => { const P = D.pages[p.n]; const iss = P?.sc?.issues || []; const e = iss.filter(i => i.lv === 'err').length, w = iss.length - e;
   return `<button type="button" class="pg" data-act="sel" data-n="${p.n}" aria-current="${D.sel === p.n}"><div class="pv">${P?.url ? `<img alt="${p.n}쪽" src="${P.url}">` : '<span class="spin">만드는 중…</span>'}${e ? `<span class="tag c-err err">${e}</span>` : w ? `<span class="tag c-warn err">${w}</span>` : ''}</div>
-    <div class="meta"><b>${p.n}</b>${P?.sc ? `<span class="muted">${esc(P.sc.pats.filter(x => x !== 'list' || P.sc.pats.length === 1).map(x => x === 'divider' ? '장 표지' : PATTERNS[x]?.name || x).slice(0, 2).join('·') || '불릿')}</span>` : ''}${P?.hist.length ? '<span class="tag t-pdf">고침</span>' : ''}</div></button>`; }).join(''); }
-function renderBoard(){ const b = $('#dBoard'); if(b) b.innerHTML = boardHtml(); }
+    <div class="meta"><b>${p.n}</b>${P?.sc ? `<span class="muted">${esc(P.sc.pats.filter(x => x !== 'list' || P.sc.pats.length === 1).map(x => x === 'divider' ? '장 표지' : PATTERNS[x]?.name || x).slice(0, 2).join('·') || '불릿')}</span>` : ''}${P?.hist.length ? '<span class="tag t-pdf">고침</span>' : ''}${P?.sc?.quality && !p.divider ? (P.sc.quality.pass ? '<span class="tag t-done" title="완성도 기준 통과">기준</span>' : `<span class="tag c-warn" title="완성도 기준 미달">미달 ${P.sc.quality.items.filter(i => i.must && !i.ok).length}</span>`) : ''}</div></button>`; }).join(''); }
+function renderBoard(){ const b = $('#dBoard'); if(b) b.innerHTML = boardHtml(); const q = $('#dQuality'); if(q) q.innerHTML = qualityHtml(); }
 function detailHtml(n){
   const P = D.pages[n]; const pg = msPage(n); if(!P?.sc) return '';
   const sc = P.sc; const subs = pg.st.subs; const ids = sc.pats; const L = locks(); const tk = P.tk;
   const fsNow = stepSize(tk, P.opt.fontStep || 0); const minB = L.bodyMin || 9;
   return `<div class="pgdetail"><div class="big"><img alt="${n}쪽 크게 보기" src="${P.url}"></div>
-    <div class="presets"><div><h3 style="margin:0">${n}쪽 · ${esc(pg.title)}</h3><p class="note">${sc.level ? `줄이기 ${sc.level}단계 적용 · ` : ''}본문 ${r1(fsNow)}pt${P.hist.length ? ` · 고친 횟수 ${P.hist.length}` : ''}</p></div>
+    <div class="presets"><div><h3 style="margin:0">${n}쪽 · ${esc(pg.title)}</h3><p class="note">${sc.level > 0 ? `줄이기 ${sc.level}단계 적용 · ` : sc.level < 0 ? `여유 배치 ${-sc.level}단계 · ` : ''}본문 ${r1(fsNow)}pt${P.hist.length ? ` · 고친 횟수 ${P.hist.length}` : ''}</p></div>
+      ${sc.quality && !pg.divider ? `<ul class="qlist">${sc.quality.items.map(i => `<li class="${i.ok ? 'ok' : i.must ? 'no' : 'soft'}"><span class="qi" aria-hidden="true">${i.ok ? '✓' : '!'}</span><span><b>${esc(i.name)}</b>${i.val ? ` <span class="muted">${esc(i.val)}</span>` : ''}${!i.ok && i.fix ? `<br><span class="muted">${esc(i.fix)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}
       ${sc.issues.length ? `<ul class="issues">${sc.issues.map(i => `<li><span class="tag ${i.lv === 'err' ? 'c-err' : 'c-warn'}">${i.lv === 'err' ? '오류' : '확인'}</span><span>${esc(i.msg)}</span></li>`).join('')}</ul>` : '<p class="note">자동 검사 통과: 겹침·넘침·최소 글자·하단 여백 이상 없음</p>'}
       ${pg.divider ? '' : `<div class="pr"><b>쪽 전체</b><div class="row"><button type="button" data-act="pre" data-v="fill">여백 채우기</button><button type="button" data-act="pre" data-v="shrink">상자 줄이기</button><button type="button" data-act="pre" data-v="alt">다른 유형으로</button><button type="button" data-act="pre" data-v="ab">시안 2개 보기</button></div></div>
       ${D.altFor === n ? `<div class="strat" id="dStrat">${altOptions(n).map((o, i) => `<button type="button" data-act="altPick" data-i="${i}"><img alt="" data-pv="alt:${n}:${i}"><b>${esc(o.name)}</b>${o.rec ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${esc(o.why)}</span></button>`).join('')}</div>` : ''}
@@ -407,6 +421,7 @@ function collectIssues(){
   const out = []; const L = locks(); const total = D.ms.pages.length;
   if(L.pagesMax && total > L.pagesMax) out.push({ key:'con:pages', lv:'err', con:true, msg:`총 ${total}쪽으로 과업지시서 상한 ${L.pagesMax}쪽을 넘습니다. 원고 분량을 줄여야 합니다.` });
   for(const pg of D.ms.pages){ const n = pg.n; const P = D.pages[n]; const R = S.res[n];
+    for(const q of (P?.sc?.quality?.items || []).filter(q => q.must && !q.ok && q.id !== 'fit')) out.push({ key:`q:${n}:${q.id}`, n, lv:'warn', msg:`완성도 기준 미달 — ${q.name}${q.val ? ` (${q.val})` : ''}. ${q.fix}` });
     for(const i of (P?.sc?.issues || []).filter(i => i.lv !== 'info')) out.push({ key:`d:${n}:${i.id}`, n, lv:i.lv, con:!!i.con, msg:i.msg, fix:i.id === 'gap' || i.id === 'overflow' });
     if(!R || R.pending) continue;
     (R.A.missingF || []).forEach((m, k) => out.push({ key:`m:${n}:${norm(m.text).slice(0, 40)}`, n, lv:'err', msg:`원고 문단이 디자인에 없습니다: ${m.text.slice(0, 60)}`, fix:true }));

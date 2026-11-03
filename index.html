@@ -233,6 +233,12 @@ label.drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events
 .flist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .flist li{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--sunk);border-radius:8px;padding:7px 10px}
 .flist .fname{font-weight:500;flex:1 1 160px;min-width:0;overflow-wrap:anywhere}
+.qlist{list-style:none;margin:6px 0 8px;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12.5px}
+.qlist li{display:flex;gap:7px;align-items:flex-start}
+.qlist .qi{flex:0 0 16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;margin-top:1px}
+.qlist .ok .qi{background:var(--ok-soft);color:var(--ok)} .qlist .no .qi{background:var(--warn-soft);color:var(--warn)} .qlist .soft .qi{background:var(--info-soft);color:var(--info)}
+.qfails{margin:6px 0 2px;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:2px}
+.linkbtn{background:none;border:0;padding:0 2px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer;font:inherit;min-height:0}
 .rfpdocs{display:flex;flex-direction:column;gap:4px;margin:2px 0 8px}
 .rfpdoc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:8px}
 .rfpdoc .fname{font-weight:600;flex:1 1 140px;min-width:0;overflow-wrap:anywhere}
@@ -538,7 +544,7 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="2" width="17" height="22" rx="3" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.6"/><path d="M7 8h9M7 12h9M7 16h5" stroke="var(--brand)" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="19.5" r="4.6" fill="var(--panel)" stroke="var(--brand)" stroke-width="1.8"/><path d="m22.8 22.8 3 3" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.7.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
+      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.8.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
     </div>
     <div class="topr"><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
     <button class="ghost" type="button" id="goHelp">검사 기준 보기</button></div>
@@ -745,7 +751,7 @@ if(window.pdfjsLib){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnj
 
 // ═════════════════════════════ 상태
 // 버전: 고칠 때마다 이 값과 README 「변경 기록」을 함께 올립니다.
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 const S = {
   data:null, gov:null, govOverride:null,
   source:null, batches:[], design:{}, mode:'page', firstMap:1,
