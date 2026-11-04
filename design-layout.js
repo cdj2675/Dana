@@ -23,7 +23,9 @@ function tokens(over){
   c.onP1 = contrast('#FFFFFF', prim) >= 4.5 ? '#FFFFFF' : m.ink;
   return { mood:over?.mood || D.mood, moodName:m.name, header:m.header, iconTone:m.icon, grid:G,
     size:{ title:body + 7, sub:body + 2.5, msg:body + 3.5, body, table:Math.max(fig, 10.5), caption:Math.max(fig, 9), head:Math.max(fig, 11), evalNo:Math.max(fig, 15), kpi:Math.max(24, body * 2), pno:Math.max(fig, 9.5) },
-    lh:1.6, r:4, color:c, fonts:{ ...D.roles }, locks:L };
+    lh:1.6, r:4, color:c, fonts:{ ...D.roles }, locks:L,
+    // 레퍼런스 성향(켜져 있을 때만): 밀도 → 묶음 간격, 색 면적 → 카드·헤드 메시지·라벨 열 바탕, 아이콘 사용
+    ref:(t => t ? { dens:t.density, rich:t.colorUse === 'rich', icon:t.comp ? t.comp.icon > 0 : true } : null)(over?.ref === undefined ? refOn() : over.ref) };
 }
 function allowedSizes(tk){ return [...new Set(Object.values(tk.size))].sort((a,b) => a-b); }
 function paletteOf2(tk){ return [...new Set(Object.values(tk.color))]; }
@@ -184,6 +186,8 @@ function patCandidates(sub){
   if(its.length >= 2 && its.length <= 6 && avg <= 90 && !sentence) c.push(['cards', lp ? 66 : its.length >= 3 && avg <= 30 ? 60 : 45]);
   if(its.length) c.push(['list', sentence || avg > 60 || its.length === 1 || its.length > 6 ? 75 : 40]);
   if(!c.length) c.push(['list', 10]);
+  // 레퍼런스가 자주 쓰는 구성은 점수를 올리고, 거의 안 쓰는 구성은 내림(0~3 → -9~+9)
+  const R = refOn()?.comp; if(R){ const map = { table:'table', ltable:'table', cards:'cards', enum:'cards', flow:'flow', cycle:'flow', kpi:'kpi', timeline:'timeline' }; for(const x of c){ const k = map[x[0]]; if(k && R[k] != null) x[1] += (R[k] - 1.5) * 6; } }
   const seen = new Set(); return c.sort((a,b) => b[1]-a[1]).filter(([id]) => !seen.has(id) && seen.add(id)).map(([id, score]) => ({ id, score }));
 }
 const VS_L = /^(기존|현행|현황|종전|AS-?IS|문제|과거)/i, VS_R = /^(개선|향후|변경|TO-?BE|대책|제안|미래|해결)/i;
@@ -228,7 +232,7 @@ function makeCtx(tk, style, level){
   // level < 0 = 여유 배치(원고가 짧은 쪽): 줄 간격·상자 안 여백·간격을 조금씩 넓힘(상자를 비우며 늘리지는 않음)
   const fs = tk.size.body; const air = Math.max(0, -level); const lhm = level >= 4 ? 1.38 : level >= 2 ? 1.48 : 1.6 + .07 * air;
   return { tk, st:style, c:tk.color, fs, lh:fs * lhm, lhm, level, air, tf:tk.size.table, cf:tk.size.caption, r:tk.r,
-    pad:level >= 2 ? 8 : 11 + 2 * air, gap:level >= 1 ? 8 : 10 + 2 * air, useIcons:level < 2 };
+    pad:level >= 2 ? 8 : 11 + 2 * air, gap:level >= 1 ? 8 : 10 + 2 * air, useIcons:level < 2 && (!tk.ref || tk.ref.icon) };
 }
 // 소제목: A = 세로 막대 + 굵은 글자, B = 두 자리 번호(01) + 굵은 글자
 function blkSubtitle(text, C, W, num){
@@ -242,7 +246,7 @@ function blkSubtitle(text, C, W, num){
 function blkHeadMsg(texts, C, W){
   const sz = C.tk.size.msg, lh = sz * 1.45; const pad = 12 + 2 * (C.air || 0), padL = 20, padR = 16;
   const lines = texts.flatMap(t => wrap(t, W - padL - padR, 'title', 700, sz)); const h = lines.length * lh + pad * 2;
-  return { kind:'msg', h, stretch:0, draw:(x, y) => [E.rect(x, y, W, h, { fill:C.c.bg2 }), E.rect(x, y, 4.5, h, { fill:C.c.p1 }),
+  return { kind:'msg', h, stretch:0, draw:(x, y) => [E.rect(x, y, W, h, { fill:C.tk.ref?.rich ? C.c.note : C.c.bg2 }), E.rect(x, y, 4.5, h, { fill:C.c.p1 }),
     T(lines, x + padL, y + pad, W - padL - padR, { size:sz, weight:700, role:'title', color:C.c.p0, lh })] };
 }
 function blkNotes(notes, C, W){
@@ -304,7 +308,7 @@ function blkCards(items, C, W){
     const out = []; let yy = y;
     rows.forEach((r, ri) => { const h = rh[ri]; const off = (W - (r.length * cw + (r.length - 1) * gap)) / 2;
       r.forEach((c, ci) => { const cx = x + off + ci * (cw + gap);
-        out.push(A ? E.rect(cx, yy, cw, h, { fill:'#FFFFFF', stroke:C.c.line, sw:.8, r:7 }) : E.rect(cx, yy, cw, h, { fill:C.c.note, r:7 }));
+        out.push(A && !C.tk.ref?.rich ? E.rect(cx, yy, cw, h, { fill:'#FFFFFF', stroke:C.c.line, sw:.8, r:7 }) : E.rect(cx, yy, cw, h, { fill:C.tk.ref?.rich && A ? C.c.bg2 : C.c.note, stroke:C.tk.ref?.rich && A ? C.c.line : undefined, sw:.6, r:7 }));
         let ty = yy + pad;
         if(icons) out.push(E.icon(cx + pad, ty, isz, iconFor(c.topic || '목표'), { tone:C.tk.iconTone }));
         if(c.tl.length) out.push(T(c.tl, cx + c.tx, ty + (c.headH - c.tl.length * ts * 1.35) / 2, cw - c.tx - pad, { size:ts, weight:700, role:'title', color:C.c.ink, lh:ts * 1.35 }));
@@ -428,7 +432,7 @@ function blkTable(rows, C, W, labelMode){
   return { kind:'table', h:nat, stretch:0, draw:(x, y) => {
     const cells = M.cells.map((r, ri) => r.map((c, ci) => {
       const isHead = M.head && ri === 0, isLab = M.labCol && ci === 0 && !isHead;
-      const fill = isHead ? (A ? '#FFFFFF' : C.c.p1) : isLab ? (A ? C.c.gray : C.c.p2) : '#FFFFFF';
+      const fill = isHead ? (A ? (C.tk.ref?.rich ? C.c.thead : '#FFFFFF') : C.c.p1) : isLab ? (A ? (C.tk.ref?.rich ? C.c.bg2 : C.c.gray) : C.c.p2) : '#FFFFFF';
       const color = isHead ? (A ? C.c.p0 : C.c.onP1) : isLab ? C.c.ink : C.c.ink;
       return { lines:c.lines, text:c.text, weight:c.wt, color, fill, align:isHead || c.num ? 'center' : 'left' }; }));
     return [{ t:'table', x, y, colW:M.cw, rowH:M.rh, cells, size:M.fs, lh:M.lh, px:M.px, line:C.c.line, edge:C.c.p1, vlines:!A, headRule:A && M.head }]; } };
@@ -589,7 +593,7 @@ function layoutOnce(pg, tk0, style, level, pats, g){
   if(pg.pics.length) secs.push({ title:'사진', blocks:[blkPhotos(pg.pics, C, BW)] });
   const concs = pg.st.concs || (pg.st.conc ? [pg.st.conc] : []);
   if(concs.length) secs.push({ title:'핵심 실행 사항', blocks:[blkConc(concs, C, BW)] });
-  const air = Math.max(0, -level); const inGap = level >= 2 ? 6 : 8 + 3 * air, subGap = 7 + 2 * air, secGap0 = level >= 1 ? 14 : 20 + 6 * air;
+  const air = Math.max(0, -level); const dg = tk.ref ? { high:-4, mid:0, low:4 }[tk.ref.dens] || 0 : 0; const inGap = level >= 2 ? 6 : 8 + 3 * air, subGap = 7 + 2 * air, secGap0 = level >= 1 ? 14 : 20 + dg + 6 * air;
   const bodyTop = hd.bodyY; const avail = y1 - bodyTop;
   const gapOf = (s, i) => i < secs.length - 1 ? (s.gapAfter ?? secGap0) : 0;
   const nat = secs.reduce((a, s, i) => a + s.blocks.reduce((b, k) => b + k.h, 0) + s.blocks.slice(0, -1).reduce((b, k) => b + (k.kind === 'sub' ? subGap : inGap), 0) + gapOf(s, i), 0);

@@ -613,6 +613,40 @@ async function paletteOf(blobOrCanvas){
   for(const [k] of [...cnt.entries()].sort((a,b) => b[1]-a[1])){ const hex = rgb2hex(((k >> 8) & 15) * 17, ((k >> 4) & 15) * 17, (k & 15) * 17); if(out.every(o => colorDist(o, hex) > 60)) out.push(hex); if(out.length >= 6) break; }
   return out;
 }
+// ───────────── 레퍼런스 성향(모양은 따라 하지 않고 밀도·색 면적·구성 비중만)
+// 픽셀 지표: 머리·바닥을 뺀 본문 영역에서 흰 바탕이 아닌 비율(ink)과 색 있는 면 비율(color)
+//  같은 방식(본문 6쪽·300px)으로 잰 값: 제출본 ink 0.27~0.30·color 0.09~0.12 / Dana 1.9 제출본 수준 원고 결과 ink 0.24·color 0.03
+function pxTraits(canvases){
+  let ink = 0, col = 0, n = 0;
+  for(const c0 of canvases){ const w = 120, h = Math.max(1, Math.round(w * c0.height / c0.width)); const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d', { willReadFrequently:true }); ctx.drawImage(c0, 0, 0, w, h); const d = ctx.getImageData(0, 0, w, h).data;
+    for(let y = Math.floor(h * .12); y < Math.floor(h * .93); y++) for(let x = Math.floor(w * .06); x < Math.floor(w * .94); x++){ const i = (y * w + x) * 4; const [, sat, l] = rgb2hsl(d[i], d[i+1], d[i+2]); n++; if(l < .93) ink++; if(sat > .2 && l > .15 && l < .93) col++; } }
+  return n ? { ink:ink / n, color:col / n } : null;
+}
+const REF_PROMPT = `첨부 이미지는 제안서·보고서 레퍼런스 쪽들을 한 장에 모은 것입니다. 모양을 따라 하려는 것이 아니라 구성 성향만 알고 싶습니다. JSON 하나로만 답하세요.
+{"components":{"table":0~3,"cards":0~3,"flow":0~3,"kpi":0~3,"timeline":0~3,"photo":0~3,"icon":0~3},"headMsg":true|false,"summaryBox":true|false,"note":"구성 성향 한 줄(40자 이내)"}
+- components: 쪽들에서 그 요소가 얼마나 자주·크게 쓰이는지(0 없음, 1 가끔, 2 자주, 3 거의 모든 쪽). table=표, cards=카드·상자 묶음, flow=단계·절차 도식, kpi=큰 숫자 강조, timeline=일정·연표, photo=사진, icon=아이콘.
+- headMsg: 제목 아래 핵심 문장 강조가 있는지. summaryBox: 쪽 아래 요약·실행 상자가 있는지.`;
+async function analyzeRefs(){
+  const refs = D.assets.refs; if(!refs.length){ D.refTraits = null; return; }
+  const pxs = refs.map(r => r.px).filter(Boolean); if(!pxs.length){ D.refTraits = null; return; }
+  const ink = pxs.reduce((a, p) => a + p.ink, 0) / pxs.length, color = pxs.reduce((a, p) => a + p.color, 0) / pxs.length;
+  const sig = refs.map(r => r.name).join('|');
+  const T = { sig, ink, color, density:ink >= .26 ? 'high' : ink >= .16 ? 'mid' : 'low', colorUse:color >= .07 ? 'rich' : color >= .035 ? 'moderate' : 'minimal', comp:null, headMsg:null, summaryBox:null, note:'', by:'pixel' };
+  if(D.refTraits?.sig === sig && D.refTraits.comp) Object.assign(T, { comp:D.refTraits.comp, headMsg:D.refTraits.headMsg, summaryBox:D.refTraits.summaryBox, note:D.refTraits.note, by:'claude' });
+  D.refTraits = T;
+  if(T.comp || !S.sample || !S.imgLimits) return;
+  // Claude: 썸네일을 한 장(최대 4×3)으로 모아 보냄
+  const ths = refs.flatMap(r => r.thumbs || []).slice(0, 12); if(!ths.length) return;
+  const ims = await Promise.all(ths.map(u => loadImg(u))); const cw = 200, chh = 283, cols = Math.min(4, ims.length), rows = Math.ceil(ims.length / cols);
+  const c = document.createElement('canvas'); c.width = cols * cw; c.height = rows * chh; const ctx = c.getContext('2d'); ctx.fillStyle = '#888'; ctx.fillRect(0, 0, c.width, c.height);
+  ims.forEach((im, i) => { if(!im) return; const s = Math.min(cw / im.width, chh / im.height); ctx.drawImage(im, (i % cols) * cw + (cw - im.width * s) / 2, Math.floor(i / cols) * chh + (chh - im.height * s) / 2, im.width * s, im.height * s); });
+  try{ const blob = await canvasBlob(c, 'image/jpeg', .85); const raw = await S.sample.json(REF_PROMPT, { images:[blob] }); const comp = raw?.components || {};
+    const ok = k => clamp(Math.round(+comp[k] || 0), 0, 3);
+    if(D.refTraits?.sig === sig) Object.assign(D.refTraits, { comp:{ table:ok('table'), cards:ok('cards'), flow:ok('flow'), kpi:ok('kpi'), timeline:ok('timeline'), photo:ok('photo'), icon:ok('icon') }, headMsg:!!raw?.headMsg, summaryBox:!!raw?.summaryBox, note:String(raw?.note || '').slice(0, 60), by:'claude' });
+  }catch(e){ console.warn('ref traits', e); }
+}
+const refOn = () => D.refUse !== false && D.refTraits ? D.refTraits : null;
 async function classifyAssets(files){
   const notes = [];
   for(const f of files){
@@ -626,7 +660,8 @@ async function classifyAssets(files){
         const topic = Object.keys(ICON_TOPICS).find(t => f.name.includes(t));
         if(topic && (ext === 'svg' || ext === 'png')){ const url = await blobToDataURL(f); D.assets.icons.push({ topic, name:f.name, url }); D.iconMap[topic] = 'file:' + f.name; continue; }
         const url = URL.createObjectURL(f); const pal = ext === 'svg' ? [] : await paletteOf(f).catch(() => []);
-        D.assets.refs.push({ name:f.name, kind:'image', url, palette:pal });
+        let px = null, th = null; if(ext !== 'svg'){ try{ const bmp = await createImageBitmap(f); const c = document.createElement('canvas'); c.width = 300; c.height = Math.max(1, Math.round(300 * bmp.height / bmp.width)); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); px = pxTraits([c]); th = c.toDataURL('image/jpeg', .7); }catch(e){} }
+        D.assets.refs.push({ name:f.name, kind:'image', url, thumbs:th ? [th] : [], px, palette:pal });
       }
       else if(ext === 'pdf'){
         // 여러 쪽 PDF(지난 제안서 등): 표지·간지·목차(앞 3쪽)를 건너뛰고 본문에서 고르게 최대 6쪽을 읽어 색을 뽑음
@@ -638,7 +673,7 @@ async function classifyAssets(files){
           const c = document.createElement('canvas'); c.width = Math.round(v.width); c.height = Math.round(v.height); const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
           await pg.render({ canvasContext:ctx, viewport:v }).promise; pg.cleanup(); thumbs.push(c); }
         const all = document.createElement('canvas'); all.width = thumbs[0].width; all.height = thumbs.reduce((a, c) => a + c.height, 0); let yy = 0; for(const c of thumbs){ all.getContext('2d').drawImage(c, 0, yy); yy += c.height; }
-        D.assets.refs.push({ name:f.name, kind:'pdf', pages:N, read:pick, url:thumbs[0].toDataURL('image/jpeg', .85), palette:await paletteOf(all) });
+        D.assets.refs.push({ name:f.name, kind:'pdf', pages:N, read:pick, url:thumbs[0].toDataURL('image/jpeg', .85), thumbs:thumbs.map(c => c.toDataURL('image/jpeg', .7)), px:pxTraits(thumbs), palette:await paletteOf(all) });
         if(N > 1) notes.push(`「${f.name}」 ${N}쪽 중 본문 ${pick.length}쪽(${pick.join('·')}쪽)에서 색을 뽑았습니다. 레퍼런스는 색 후보로만 쓰고 모양은 따라 하지 않습니다.`);
       }
       else notes.push(`「${f.name}」은 디자인 자료로 쓸 수 없는 형식입니다.`);
