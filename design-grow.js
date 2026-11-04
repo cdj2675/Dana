@@ -26,25 +26,38 @@ const CAT = [
   '.KK..KKKKKKKKKKKKKKK',
   '.....KKKKKKKKKKKKKK.',
 ];
-const CAT_COL = { K:'#26292D', W:'#FFFFFF' };
+// 흰 몸 + 진한 테두리(밝은 화면·어두운 화면 모두에서 보이도록), 눈은 진하게
+const CAT_INK = '#26292D';
 function catPixels(state){
   const g = CAT.map(r => r.split(''));
-  if(state === 'hungry'){ // 세로 두 칸 눈 → 아랫줄 가로 세 칸
-    for(const x of [13, 17]){ g[7][x] = 'K'; g[8][x] = 'K'; }
-    for(const x of [12, 13, 14, 16, 17, 18]) g[8][x] = 'W';
-  }
+  const eyes = new Set(['13,7', '13,8', '17,7', '17,8']);
+  const H = g.length, Wd = g[0].length, on = (x, y) => y >= 0 && y < H && x >= 0 && x < Wd && g[y][x] !== '.';
   const px = [];
-  g.forEach((r, y) => r.forEach((ch, x) => { if(CAT_COL[ch]) px.push([x, y, CAT_COL[ch]]); }));
-  const add = (pts, c) => pts.forEach(([x, y]) => px.push([x, y, c]));
+  const put = (x, y, c) => px.push([x + 1, y + 1, c]);
+  // 테두리: 몸 바로 바깥(상하좌우) 칸
+  for(let y = -1; y <= H; y++) for(let x = -1; x <= Wd; x++){
+    if(on(x, y)) continue;
+    if(on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1)) put(x, y, CAT_INK);
+  }
+  g.forEach((r, y) => r.forEach((ch, x) => {
+    if(ch === '.') return;
+    const k = x + ',' + y;
+    if(eyes.has(k)) put(x, y, state === 'hungry' ? '#FFFFFF' : CAT_INK);
+    else if(ch === 'W') put(x, y, '#C9CED3'); // 귀 안쪽
+    else put(x, y, '#FFFFFF');
+  }));
+  if(state === 'hungry') for(const x of [12, 13, 14, 16, 17, 18]) put(x, 8, CAT_INK); // 가로로 긴 눈
+  // 소품은 테두리만큼 오른쪽으로 비켜 둠
+  const add = (pts, c) => pts.forEach(([x, y]) => px.push([x + 2, y + 1, c]));
   const bowl = () => { add([21, 22, 23, 24, 25, 26].map(x => [x, 9]), '#9AA5AE'); add([22, 23, 24, 25].map(x => [x, 10]), '#9AA5AE'); };
   if(state === 'hungry'){ add([[21, 1], [21, 2], [20, 2], [21, 3], [20, 3]], '#7FB8E8'); bowl(); }
-  if(state === 'eating'){ bowl(); for(let x = 21; x <= 26; x++) px.push([x, 8, x % 2 ? '#C08040' : '#8E5A2A']); for(let x = 22; x <= 25; x++) px.push([x, 7, x % 2 ? '#8E5A2A' : '#C08040']); px.push([23, 6, '#C08040'], [24, 6, '#8E5A2A']); }
-  if(state === 'full') for(const [cx, cy] of [[5, 2], [21, 1], [23, 7]]) add([[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [cx + dx, cy + dy]), '#F2C14E');
+  if(state === 'eating'){ bowl(); for(let x = 21; x <= 26; x++) add([[x, 8]], x % 2 ? '#C08040' : '#8E5A2A'); for(let x = 22; x <= 25; x++) add([[x, 7]], x % 2 ? '#8E5A2A' : '#C08040'); add([[23, 6]], '#C08040'); add([[24, 6]], '#8E5A2A'); }
+  if(state === 'full') for(const [cx, cy] of [[4, 2], [22, 1], [24, 7]]) add([[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [cx + dx, cy + dy]), '#F2C14E');
   return px;
 }
 function catSvg(state, s){
-  const W = 28, H = 12;
-  return `<svg class="pxcat ${state}" viewBox="0 -1 ${W} ${H}" width="${W * s}" height="${H * s}" shape-rendering="crispEdges" aria-hidden="true">${catPixels(state).map(([x, y, c]) => `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${c}"/>`).join('')}</svg>`;
+  const W = 30, H = 12;
+  return `<svg class="pxcat ${state}" viewBox="0 1 ${W} ${H}" width="${W * s}" height="${H * s}" shape-rendering="crispEdges" aria-hidden="true">${catPixels(state).map(([x, y, c]) => `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${c}"/>`).join('')}</svg>`;
 }
 
 // ───────────── 소화: 한 문서에서 영양분 재기
@@ -195,8 +208,14 @@ const Grow = {
     const b = document.getElementById('growBtn'); if(!b) return;
     const s = this.sum(), m = this.mood(), w = Math.min(100, s.xp / s.need * 100);
     b.innerHTML = `<span class="growtile">${catSvg(m, 2)}</span><span class="growmini"><b>Lv${s.lv}</b><span class="xpmini"><i style="width:${w}%"></i></span></span>`;
-    b.title = `Dana 고양이 · Lv${s.lv} · ${this.moodText(m)} · 경험치 ${s.xp}/${s.need}`;
-    b.setAttribute('aria-label', `학습 열기. ${b.title}`);
+    b.setAttribute('aria-label', `학습 열기. Dana 고양이 Lv${s.lv}, ${this.moodText(m)}, 경험치 ${s.xp}/${s.need}`);
+    const t = document.getElementById('growTip'); if(!t) return;
+    const ck = ok => ok ? '✓' : '·';
+    t.innerHTML = `<div class="gt1"><b>Dana 고양이 · Lv${s.lv}</b><span>${this.moodText(m)}</span></div>
+      <p>완성 제안서 PDF를 먹이로 주면 경험치가 올라요. 레벨이 오르면 Dana의 기본 디자인 기준이 자라요.</p>
+      <div class="gtnow"><span>${ck(s.xp >= s.need)} 경험치 ${s.xp}/${s.need}</span><span>${ck(s.feeds >= 3)} 먹이 ${s.feeds}/3</span><span>${ck(s.givers >= 2)} 준 사람 ${s.givers}/2</span></div>
+      <ul><li><b>경험치</b> 본문 1쪽당 1(문서당 최대 60)</li><li><b>더 받기</b> 수주 ×2 · 고득점 ×1.5 · 새 분야 +20%</li><li><b>덜 받기</b> 탈락 ×0.5 · 제안서 아님 ×0.5 · 중복 0</li><li><b>레벨업</b> 경험치 + 먹이 3개 + 준 사람 2명 → 승인자 검토</li></ul>
+      <p class="gtfoot">누르면 학습 화면이 열려요.</p>`;
   },
   render(){ this.renderBtn(); if(!document.getElementById('growOv')?.hidden) this.renderPanel(); },
 
