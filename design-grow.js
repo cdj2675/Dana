@@ -208,14 +208,8 @@ const Grow = {
     const b = document.getElementById('growBtn'); if(!b) return;
     const s = this.sum(), m = this.mood(), w = Math.min(100, s.xp / s.need * 100);
     b.innerHTML = `<span class="growtile">${catSvg(m, 2)}</span><span class="growmini"><b>Lv${s.lv}</b><span class="xpmini"><i style="width:${w}%"></i></span></span>`;
-    b.setAttribute('aria-label', `학습 열기. Dana 고양이 Lv${s.lv}, ${this.moodText(m)}, 경험치 ${s.xp}/${s.need}`);
-    const t = document.getElementById('growTip'); if(!t) return;
-    const ck = ok => ok ? '✓' : '·';
-    t.innerHTML = `<div class="gt1"><b>Dana 고양이 · Lv${s.lv}</b><span>${this.moodText(m)}</span></div>
-      <p>완성 제안서 PDF를 먹이로 주면 경험치가 올라요. 레벨이 오르면 Dana의 기본 디자인 기준이 자라요.</p>
-      <div class="gtnow"><span>${ck(s.xp >= s.need)} 경험치 ${s.xp}/${s.need}</span><span>${ck(s.feeds >= 3)} 먹이 ${s.feeds}/3</span><span>${ck(s.givers >= 2)} 준 사람 ${s.givers}/2</span></div>
-      <ul><li><b>경험치</b> 본문 1쪽당 1(문서당 최대 60)</li><li><b>더 받기</b> 수주 ×2 · 고득점 ×1.5 · 새 분야 +20%</li><li><b>덜 받기</b> 탈락 ×0.5 · 제안서 아님 ×0.5 · 중복 0</li><li><b>레벨업</b> 경험치 + 먹이 3개 + 준 사람 2명 → 승인자 검토</li></ul>
-      <p class="gtfoot">누르면 학습 화면이 열려요.</p>`;
+    b.setAttribute('aria-label', `학습 열기. Dana Lv${s.lv}, ${this.moodText(m)}, 경험치 ${s.xp}/${s.need}`);
+    const t = document.getElementById('growTip'); if(t) t.textContent = 'Dana에게 먹이를 주면 성장시킬 수 있어요';
   },
   render(){ this.renderBtn(); if(!document.getElementById('growOv')?.hidden) this.renderPanel(); },
 
