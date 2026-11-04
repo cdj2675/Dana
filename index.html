@@ -537,18 +537,74 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
 .busy{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--ink2)}
 .busy .progress{flex:1 1 auto}
 .dot-y{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);vertical-align:1px}
+/* 학습(먹이 주기) · 고양이 */
+.growbtn{display:flex;align-items:center;gap:8px;border-radius:99px;padding:3px 12px 3px 4px}
+.growtile{display:grid;place-items:center;background:#F6F3EC;border-radius:99px;padding:3px 8px;line-height:0}
+.growmini{display:grid;gap:3px;justify-items:start}
+.growmini b{font-size:12px;line-height:1;font-variant-numeric:tabular-nums}
+.xpmini{display:block;width:42px;height:4px;border-radius:2px;background:var(--line2);overflow:hidden}
+.xpmini i{display:block;height:100%;background:var(--brand)}
+.pxcat.eating{animation:catbob .7s steps(2) infinite}
+@keyframes catbob{50%{transform:translateY(1px)}}
+.growov{position:fixed;inset:0;z-index:40;background:rgba(10,16,13,.42);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;overflow:auto}
+.growov[hidden]{display:none}
+body.noscroll{overflow:hidden}
+.growpanel{width:min(720px,100%);background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 48px rgba(0,0,0,.2);padding:18px 20px;display:grid;gap:16px}
+.ghead{display:flex;align-items:center;justify-content:space-between}
+.ghead h2{margin:0;font-size:18px}
+.gtop{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.gcat{background:#F6F3EC;border-radius:12px;padding:14px 16px;line-height:0}
+.gcat svg{max-width:100%;height:auto}
+.gstat{flex:1 1 260px;display:grid;gap:7px}
+.glv{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.gmood{font-size:13px;font-weight:600;color:var(--ink2);background:var(--sunk);border-radius:99px;padding:2px 9px;margin-left:6px;vertical-align:middle}
+.xpbar{display:flex;height:10px;border-radius:5px;background:var(--line2);overflow:hidden}
+.xpbar i{display:block;height:100%;background:var(--brand)}
+.xpbar i.gray{background:repeating-linear-gradient(45deg,var(--muted) 0 4px,var(--line) 4px 8px)}
+.xpnum{font-size:13px;font-variant-numeric:tabular-nums}
+.gconds{display:flex;gap:6px;flex-wrap:wrap}
+.gcond{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:2px 9px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gcond.ok{border-color:var(--brand);color:var(--brand);background:var(--brand-soft)}
+.gnote{margin:0;font-size:12.5px;color:var(--ink2);line-height:1.6}
+.gsec{display:grid;gap:10px;border-top:1px solid var(--line2);padding-top:14px}
+.gsec h3{margin:0;font-size:14px}
+label.drop.gdrop{min-height:96px;padding:12px}
+.gfiles{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:13px}
+.gfiles li{display:flex;gap:8px;align-items:center}
+.gfiles li span{flex:1;min-width:0;overflow-wrap:anywhere}
+.gmeta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 10px}
+.gmeta .gmlbl{grid-column:1/-1;font-size:12.5px;font-weight:600}
+.gmeta label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+.gmeta select,.gmeta input{font:inherit;font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:6px 8px;min-width:0;width:100%}
+.gscore{display:flex;align-items:center;gap:4px;color:var(--muted)}
+@media (max-width:620px){.gmeta{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.gact{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.gprog{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.glog{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:12.5px}
+.glog li{border-radius:7px;padding:6px 9px;background:var(--sunk)}
+.glog li.ok{background:var(--brand-soft)} .glog li.warn{background:var(--warn-soft);color:var(--warn)} .glog li.err{background:var(--err-soft);color:var(--err)} .glog li.info{background:var(--info-soft);color:var(--info)}
+.gtable{overflow-x:auto}
+.gtable table{width:100%;border-collapse:collapse;font-size:12.5px}
+.gtable th,.gtable td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.gtable th{font-weight:600;color:var(--muted);font-size:12px}
+.gtable .n{text-align:right;font-variant-numeric:tabular-nums}
+.gtable tr.gray td{color:var(--muted)}
+@media (max-width:560px){.growmini{display:none}.growbtn{padding:3px}}
+.gtag{font-size:11px;border:1px solid var(--warn);color:var(--warn);border-radius:5px;padding:0 5px}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+@media (prefers-reduced-motion: reduce){.pxcat.eating{animation:none}}
 </style>
 
 <div class="wrap">
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="2" width="17" height="22" rx="3" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.6"/><path d="M7 8h9M7 12h9M7 16h5" stroke="var(--brand)" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="19.5" r="4.6" fill="var(--panel)" stroke="var(--brand)" stroke-width="1.8"/><path d="m22.8 22.8 3 3" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.11.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
+      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.12.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
     </div>
-    <div class="topr"><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
+    <div class="topr"><button type="button" class="growbtn" id="growBtn" aria-haspopup="dialog"></button><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
     <button class="ghost" type="button" id="goHelp">검사 기준 보기</button></div>
   </header>
+  <div class="growov" id="growOv" hidden><div class="growpanel" id="growPanel" role="dialog" aria-modal="true" aria-labelledby="growTitle"></div></div>
   <nav class="modetabs" role="tablist" aria-label="작업 종류">
     <button type="button" role="tab" id="tabDesign" data-mode="design" aria-selected="false"><b>디자인</b><small>자료로 초안 만들기</small></button>
     <button type="button" role="tab" id="tabReview" data-mode="review" aria-selected="true"><b>검수</b><small>만든 파일을 원고·규격과 대조</small></button>
@@ -751,7 +807,7 @@ if(window.pdfjsLib){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnj
 
 // ═════════════════════════════ 상태
 // 버전: 고칠 때마다 이 값과 README 「변경 기록」을 함께 올립니다.
-const VERSION = '1.11.0';
+const VERSION = '1.12.0';
 const S = {
   data:null, gov:null, govOverride:null,
   source:null, batches:[], design:{}, mode:'page', firstMap:1,
@@ -3060,6 +3116,7 @@ async function connectDb(){
   S.db = db; S.user = user;
   if(db && user){ try{ S.uid = await user.id(); }catch(e){ S.uid = null; } }
   S.dbTried = true;
+  window.Grow?.init?.();
   if(!W.ok()){ S.db = null; renderWs(); renderSettings(); renderSys(); return; }
   let me = null; try{ const snap = await S.db.doc(`data/users/${S.uid}/me`).get(); me = snap.exists ? snap.data() : null; }catch(e){}
   S.parties = Array.isArray(me?.parties) ? me.parties : [];
@@ -3207,4 +3264,5 @@ boot();
 <script src="design-data.js"></script>
 <script src="design-layout.js"></script>
 <script src="design-vault.js"></script>
+<script src="design-grow.js"></script>
 <script src="design-ui.js"></script>
