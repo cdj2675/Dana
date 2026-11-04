@@ -149,6 +149,7 @@ function P2(){
   return `<section class="dpanel">${phead('디자인 시스템', `같은 쪽(원고 ${n}쪽)을 세 가지 무드로 그렸습니다. 하나를 고르고, 필요하면 색만 한두 개 바꾸세요.`, g1 ? `<span class="vtag">디자인 가이드 v${esc(D.guide.version)}</span>` : '')}
     <div class="moods">${Object.entries(MOODS).map(([id, mm]) => `<button type="button" class="mood" data-act="mood" data-v="${id}" aria-pressed="${D.mood === id}"><div class="pv"><img alt="${esc(mm.name)} 무드로 그린 ${n}쪽" data-pv="mood:${id}:${n}"></div><div class="mh"><b>${esc(mm.name)}</b><span class="sw">${[id === D.mood ? prim : mm.primary, mix(id === D.mood ? prim : mm.primary, '#FFFFFF', .88), mm.point, id === D.mood ? acc : mm.accent].map(c => `<i style="background:${c}"></i>`).join('')}</span>${id === 'navy' ? '<span class="tag rec">권장</span>' : ''}</div></button>`).join('')}</div>
     <div class="sysgrid2">
+      ${refTraitsHtml()}
       <div class="blk"><h3>색 조정 (${esc(m.name)})</h3>
         <div class="swpick"><span class="lbl">주색</span>${sw([...m.primaries, ...refCols.filter(c => lum(c) < .25)], prim, 'primary')}</div>
         <div class="swpick"><span class="lbl">강조색</span>${sw([...m.accents, ...refCols.filter(c => lum(c) >= .12)], acc, 'accent')}</div>
@@ -256,6 +257,21 @@ function P4(){
 function sampleSig(n){ const ids = patternsFor(n); const pg = msPage(n);
   if(ids.some(id => ['flow', 'cycle', 'hub', 'timeline'].includes(id))) return 'diagram'; if(ids.includes('vs')) return 'compare'; if(ids.includes('kpi')) return 'number';
   if(ids.some(id => id === 'table' || id === 'ltable') || pg.st.subs.some(s => s.tables.length)) return 'table'; if(ids.includes('cards')) return 'card'; return 'text'; }
+// 레퍼런스 성향 패널(2단계): 모양이 아니라 밀도·색 면적·구성 비중만 반영
+function refTraitsHtml(){
+  const t = D.refTraits; if(!t) return '';
+  const DN = { high:'촘촘함', mid:'보통', low:'여유' }, CN = { rich:'넓음', moderate:'보통', minimal:'적음' };
+  const CP = { table:'표', cards:'카드', flow:'단계 도식', kpi:'수치 강조', timeline:'일정', photo:'사진', icon:'아이콘' };
+  const top = t.comp ? Object.entries(t.comp).filter(([, v]) => v >= 2).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${CP[k]}${v === 3 ? '(거의 모든 쪽)' : ''}`) : [];
+  const off = t.comp ? Object.entries(t.comp).filter(([, v]) => v === 0).map(([k]) => CP[k]) : [];
+  return `<div class="blk"><div class="row" style="justify-content:space-between"><h3 style="margin:0">레퍼런스 성향</h3><label class="chk"><input type="checkbox" data-act2="refUse" ${D.refUse !== false ? 'checked' : ''}> 배치에 반영</label></div>
+    <p class="note">모양·색은 따라 하지 않고, 쪽 밀도·색 면적·자주 쓰는 구성만 Dana 배치에 반영합니다.${t.by === 'pixel' && S.sample ? ' 구성 비중은 Claude가 읽는 중이거나 읽지 못했습니다.' : t.by === 'pixel' ? ' 이 화면에서는 구성 비중을 읽을 수 없어 밀도·색 면적만 씁니다.' : ''}</p>
+    <ul class="qlist"><li class="ok"><span class="qi">·</span><span><b>쪽 밀도</b> ${DN[t.density]} <span class="muted">(본문 사용 ${Math.round(t.ink * 100)}%) → 묶음 간격 ${t.density === 'high' ? '좁게' : t.density === 'low' ? '넓게' : '기본'}</span></span></li>
+      <li class="ok"><span class="qi">·</span><span><b>색 면적</b> ${CN[t.colorUse]} <span class="muted">(${Math.round(t.color * 100)}%) → ${t.colorUse === 'rich' ? '카드·헤드 메시지·표 머리에 옅은 바탕' : '흰 바탕 위주'}</span></span></li>
+      ${top.length ? `<li class="ok"><span class="qi">·</span><span><b>자주 쓰는 구성</b> ${esc(top.join(' · '))} <span class="muted">→ 이 유형을 먼저 고름</span></span></li>` : ''}
+      ${off.length ? `<li class="ok"><span class="qi">·</span><span><b>거의 안 쓰는 구성</b> ${esc(off.join(' · '))}${off.includes('아이콘') ? ' <span class="muted">→ 아이콘 끔</span>' : ''}</span></li>` : ''}
+      ${t.note ? `<li class="ok"><span class="qi">·</span><span class="muted">${esc(t.note)}</span></li>` : ''}</ul></div>`;
+}
 function pickSamples(){
   const A = D._an = analysis(); const order = [...A.secs].sort((a, b) => b.density - a.density || a.pages[0] - b.pages[0]);
   const pages = order.flatMap(s => s.pages).filter(n => !msPage(n)?.divider); const out = []; const used = new Set();
@@ -490,7 +506,7 @@ async function fillPreviews(){
 // 디자인 탭 자료 초기화: 올린 자료·고른 스타일·확정을 지우고, 보관 파일·저장된 진행 상태도 지움
 async function resetDesign(){
   D.resetAsk = false;
-  Object.assign(D, { rfp:null, ms:null, assets:{ grids:[], refs:[], fonts:[], icons:[], tokens:null }, fams:[], roles:{ body:'@noto', title:'@noto', num:null },
+  Object.assign(D, { rfp:null, ms:null, assets:{ grids:[], refs:[], fonts:[], icons:[], tokens:null }, refTraits:null, refUse:true, fams:[], roles:{ body:'@noto', title:'@noto', num:null },
     grid:null, mood:'navy', colors:{ primary:null, accent:null }, iconMap:{}, msgs:{}, patEdit:false, mapOpen:false,
     restored:null, restoredSig:null, restoredGates:null, restoredGuide:null, restoredPageOpt:null, restoredRoles:null });
   resetProject(); resetMetrics(); PV.clear();
@@ -512,6 +528,7 @@ function bindDesign(){
     if(!gridOK(D.grid)){ dmsg('assets', 'err', '여백이 너무 커서 본문 영역이 없습니다. 값을 확인해 주세요.'); } else dmsg('assets'); PV.clear(); renderDesign(); saveSoon(); }));
   z.querySelectorAll('select[data-map]').forEach(s => s.addEventListener('change', () => { if(!s.value) return; const it = s.dataset.map; for(const k in D.mapping) D.mapping[k] = D.mapping[k].filter(x => x !== s.value); D.mapping[it].push(s.value); D._an = null; D._auto = null; renderDesign(); saveSoon(); }));
   z.querySelectorAll('select[data-tier]').forEach(s => s.addEventListener('change', () => { const it = D.rfp.items.find(i => i.id === s.dataset.tier); if(!it) return; it.w = TIER_W[s.value]; it.why = (it.why || '').replace(/ · 직접 고침$/, '') + ' · 직접 고침'; normDerived(D.rfp.items); afterItemChange(); }));
+  z.querySelector('input[data-act2="refUse"]')?.addEventListener('change', e => { D.refUse = e.target.checked; D._auto = null; PV.clear(); renderDesign(); saveSoon(); });
   z.querySelectorAll('select[data-pat]').forEach(s => s.addEventListener('change', () => { const [n, i] = s.dataset.pat.split(':').map(Number); (D.plan.pat[n] ||= {})[i] = s.value; PV.clear(); renderDesign(); saveSoon(); }));
   z.querySelectorAll('select[data-ppat]').forEach(s => s.addEventListener('change', async () => { const [n, i] = s.dataset.ppat.split(':').map(Number); const pats = [...patternsForPage(n)]; pats[i] = s.value; await genPage(n, { pats }); renderDesign(); saveSoon(); }));
   z.querySelectorAll('input[data-fmt]').forEach(c => c.addEventListener('change', () => { c.checked ? D.out.fmts.add(c.dataset.fmt) : D.out.fmts.delete(c.dataset.fmt); }));
@@ -584,6 +601,7 @@ async function takeFiles(id, files){
       D.ms = ms; if(!same) resetProject(); else { D.pages = {}; D._auto = null; D._an = null; }
       D.restored = null; await ensureFonts(ms.text); Vault.put('design:ms', [files[0]]); }
     else { busy('디자인 자료를 나누는 중…', .3); const notes = await classifyAssets(files); if(notes.length) dmsg('assets', 'info', notes.join(' '));
+      if(D.assets.refs.length){ busy('레퍼런스 성향을 읽는 중…', .8); await analyzeRefs(); D._auto = null; PV.clear(); }
       Vault.put('design:assets', files.filter(f => ['pptx','ttf','otf','ttc','json','png','jpg','jpeg','webp','svg','pdf'].includes(extOf(f))), { append:true });
       if(D.assets.tokens) applyTokensFile(D.assets.tokens); resetMetrics(); PV.clear(); await ensureFonts(D.ms?.text); }
   }catch(e){ console.error(e); dmsg(id, 'err', e?.user || `「${files[0].name}」을 읽지 못했습니다. 파일이 손상되지 않았는지 확인해 주세요.`); }
@@ -607,13 +625,14 @@ async function saveState(){
   const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', itemsFrom:D.rfp.itemsFrom || null, itemsOk:!!D.rfp.itemsOk, docs:(D.rfp.docs || []).map(d => ({ name:d.name, kind:d.kind, items:d.items, cons:d.cons, by:d.by, mode:d.mode, basis:d.basis, pages:d.pages })) } : null,
     grid:D.grid, mood:D.mood, colors:D.colors, roles:{ body:famOf(D.roles.body).label, title:famOf(D.roles.title).label, num:D.roles.num ? famOf(D.roles.num).label : null }, iconMap:D.iconMap,
     mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
-    pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked };
+    pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked, refTraits:D.refTraits || null, refUse:D.refUse !== false };
   try{ await W.set('design/state', st); }catch(e){ console.warn('design save', e); }
 }
 async function loadState(){
   if(!W.ok()) return; let st = null; try{ st = await W.get('design/state'); }catch(e){} if(!st || st.v !== 1) return;
   if(D.ms) return;
   Object.assign(D, { grid:st.grid || null, mood:st.mood || 'navy', colors:st.colors || {}, iconMap:st.iconMap || {}, mapping:st.mapping || null, plan:st.plan || { pat:{}, dec:{} }, style:st.style || null, samples:st.samples || [] });
+  if(st.refTraits) D.refTraits = st.refTraits; if(st.refUse === false) D.refUse = false;
   if(st.rfp){ D.rfp = { ...st.rfp, pages:0 }; if(!D.rfp.docs && D.rfp.name !== '직접 입력') D.rfp.docs = [{ name:D.rfp.name, kind:'과업지시서', items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', pages:0 }]; }
   D.restoredGates = st.gates; D.restoredGuide = st.guide; D.restoredPageOpt = st.pageOpt || {}; D.review.acked = st.acked || {};
   D.restored = `${st.msSig.name} · ${new Date(st.at).toLocaleDateString('ko-KR')}`; D.restoredSig = st.msSig; D.restoredRoles = st.roles;
