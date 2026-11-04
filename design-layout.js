@@ -25,7 +25,8 @@ function tokens(over){
     size:{ title:body + 7, sub:body + 2.5, msg:body + 3.5, body, table:Math.max(fig, 10.5), caption:Math.max(fig, 9), head:Math.max(fig, 11), evalNo:Math.max(fig, 15), kpi:Math.max(24, body * 2), pno:Math.max(fig, 9.5) },
     lh:1.6, r:4, color:c, fonts:{ ...D.roles }, locks:L,
     // 레퍼런스 성향(켜져 있을 때만): 밀도 → 묶음 간격, 색 면적 → 카드·헤드 메시지·라벨 열 바탕, 아이콘 사용
-    ref:(t => t ? { dens:t.density, rich:t.colorUse === 'rich', icon:t.comp ? t.comp.icon > 0 : true } : null)(over?.ref === undefined ? refOn() : over.ref) };
+    // 레퍼런스가 없으면 내장 기본값(제출본 측정: 색 면적 9~12% → 옅은 바탕을 기본으로)
+    ref:(t => t ? { dens:t.density, rich:t.colorUse !== 'minimal', icon:t.comp ? t.comp.icon > 0 : true } : { dens:'mid', rich:true, icon:true, base:true })(over?.ref === undefined ? refOn() : over.ref) };
 }
 function allowedSizes(tk){ return [...new Set(Object.values(tk.size))].sort((a,b) => a-b); }
 function paletteOf2(tk){ return [...new Set(Object.values(tk.color))]; }
@@ -308,10 +309,12 @@ function blkCards(items, C, W){
     const out = []; let yy = y;
     rows.forEach((r, ri) => { const h = rh[ri]; const off = (W - (r.length * cw + (r.length - 1) * gap)) / 2;
       r.forEach((c, ci) => { const cx = x + off + ci * (cw + gap);
-        out.push(A && !C.tk.ref?.rich ? E.rect(cx, yy, cw, h, { fill:'#FFFFFF', stroke:C.c.line, sw:.8, r:7 }) : E.rect(cx, yy, cw, h, { fill:C.tk.ref?.rich && A ? C.c.bg2 : C.c.note, stroke:C.tk.ref?.rich && A ? C.c.line : undefined, sw:.6, r:7 }));
+        out.push(A && !C.tk.ref?.rich ? E.rect(cx, yy, cw, h, { fill:'#FFFFFF', stroke:C.c.line, sw:.8, r:7 }) : A ? E.rect(cx, yy, cw, h, { fill:C.c.note, r:7 }) : E.rect(cx, yy, cw, h, { fill:'#FFFFFF', stroke:C.c.p1, sw:1, r:7 }));
         let ty = yy + pad;
-        if(icons) out.push(E.icon(cx + pad, ty, isz, iconFor(c.topic || '목표'), { tone:C.tk.iconTone }));
-        if(c.tl.length) out.push(T(c.tl, cx + c.tx, ty + (c.headH - c.tl.length * ts * 1.35) / 2, cw - c.tx - pad, { size:ts, weight:700, role:'title', color:C.c.ink, lh:ts * 1.35 }));
+        // 기본(색 면적 넓음): 카드 제목 줄을 주색 띠로 — 제출본의 색 있는 면 비율(9~12%)에 맞춤
+        const strip = false; const tone = A && C.tk.ref?.rich ? 'dark' : C.tk.iconTone; if(A && C.tk.ref?.rich){ out.push(E.rect(cx, yy, cw, 4, { fill:C.c.p1 })); }
+        if(icons) out.push(E.icon(cx + pad, ty, isz, iconFor(c.topic || '목표'), { tone:strip ? 'dark' : tone }));
+        if(c.tl.length) out.push(T(c.tl, cx + c.tx, ty + (c.headH - c.tl.length * ts * 1.35) / 2, cw - c.tx - pad, { size:ts, weight:700, role:'title', color:strip ? C.c.onP1 : C.c.ink, lh:ts * 1.35 }));
         ty += c.headH;
         if(c.dl.length){ ty += c.headH ? 7 : 0; out.push(T(c.dl, cx + pad, ty, cw - pad * 2, { size:C.fs, color:C.c.ink, lh:C.lh })); ty += c.dl.length * C.lh; }
         if(c.bl.length){ ty += 7; c.bl.forEach(l => { out.push(...check(cx + pad, ty + C.lh / 2 - 3.5, C.c.p1)); out.push(T(l, cx + pad + 12, ty, cw - pad * 2 - 12, { size:C.fs, color:C.c.ink, lh:C.lh })); ty += l.length * C.lh + 3; }); }
@@ -404,7 +407,7 @@ function blkKpi(k, C, W){
     const out = []; const add = ex / rows;
     tiles.forEach((t, i) => { const r = Math.floor(i / cols), c = i % cols; const rowCnt = Math.min(cols, n - r * cols); const off = (W - (rowCnt * cw + (rowCnt - 1) * gap)) / 2;
       const tx = x + off + c * (cw + gap), ty = y + r * (th + add + gap); const h = th + add;
-      if(A) out.push(E.rect(tx, ty, cw, h, { fill:C.c.bg2, r:C.r })); else { out.push(E.rect(tx, ty, cw, h, { fill:C.c.bg, stroke:C.c.line, sw:.75, r:C.r })); out.push(E.rect(tx, ty, cw, 2.5, { fill:C.c.p1 })); }
+      if(A) out.push(E.rect(tx, ty, cw, h, { fill:C.tk.ref?.rich ? C.c.note : C.c.bg2, r:C.r })); else { out.push(E.rect(tx, ty, cw, h, { fill:C.c.bg, stroke:C.c.line, sw:.75, r:C.r })); out.push(E.rect(tx, ty, cw, 2.5, { fill:C.c.p1 })); }
       const vw = tw(t.value, 'num', 700, ks), uw = tw(t.unit, 'body', 500, C.fs); const sx = tx + (cw - vw - uw - 3) / 2; const vy = ty + pad + add / 2;
       out.push(T([t.value], sx, vy, vw + uw + 6, { size:ks, weight:700, role:'num', color:A ? C.c.p1 : C.c.accent, lh:lh2, suffix:{ text:t.unit, size:C.fs, weight:500, role:'body', color:C.c.ink2, gap:3 } }));
       out.push(T(t.ll, tx + pad, vy + lh2 + 4, cw - pad * 2, { size:C.fs, color:C.c.ink, lh:C.lh, align:'center' })); });
@@ -432,8 +435,8 @@ function blkTable(rows, C, W, labelMode){
   return { kind:'table', h:nat, stretch:0, draw:(x, y) => {
     const cells = M.cells.map((r, ri) => r.map((c, ci) => {
       const isHead = M.head && ri === 0, isLab = M.labCol && ci === 0 && !isHead;
-      const fill = isHead ? (A ? (C.tk.ref?.rich ? C.c.thead : '#FFFFFF') : C.c.p1) : isLab ? (A ? (C.tk.ref?.rich ? C.c.bg2 : C.c.gray) : C.c.p2) : '#FFFFFF';
-      const color = isHead ? (A ? C.c.p0 : C.c.onP1) : isLab ? C.c.ink : C.c.ink;
+      const fill = isHead ? (A ? (C.tk.ref?.rich ? C.c.p1 : '#FFFFFF') : C.c.p1) : isLab ? (A ? (C.tk.ref?.rich ? C.c.note : C.c.gray) : C.c.p2) : '#FFFFFF';
+      const color = isHead ? (A ? (C.tk.ref?.rich ? C.c.onP1 : C.c.p0) : C.c.onP1) : isLab ? C.c.ink : C.c.ink;
       return { lines:c.lines, text:c.text, weight:c.wt, color, fill, align:isHead || c.num ? 'center' : 'left' }; }));
     return [{ t:'table', x, y, colW:M.cw, rowH:M.rh, cells, size:M.fs, lh:M.lh, px:M.px, line:C.c.line, edge:C.c.p1, vlines:!A, headRule:A && M.head }]; } };
 }
