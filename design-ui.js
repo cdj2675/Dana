@@ -70,11 +70,17 @@ function subnav(){ const st = stageOf(D.step); if(st.steps.length < 2) return ''
   const names = { 1:'자료 올리기', 2:'디자인 시스템' };
   return `<div class="subnav" role="group" aria-label="${st.t} 안의 화면">${st.steps.map((k, i) => `<button type="button" data-act="go" data-k="${k}" aria-pressed="${D.step === k}" ${canGo(k) ? '' : 'disabled'}><i>${i + 1}</i>${names[k]}</button>`).join('<span aria-hidden="true">›</span>')}</div>`; }
 const phead = (title, desc, extra = '') => { const st = stageOf(D.step); return `<header><span class="num">${st.n}</span><div><h2>${title}</h2><p>${desc}</p></div>${extra}</header>${subnav()}`; };
+// 먹이로 자란 레벨: 디자인 가이드를 확정한 프로젝트는 그때 레벨로 고정. 더 자랐으면 새 레벨로 다시 만들 수 있음
+function growNote(){
+  if(!D.gates.g1 || D.step < 4 || !window.Grow) return '';
+  const now = Grow.state?.level || 1, at = D.growSnap?.lv || 1; if(now === at) return '';
+  return `<div class="msg info grownote">Dana가 Lv${now}${now > at ? '로 자랐어요' : '로 바뀌었어요'}. 이 프로젝트는 디자인 가이드를 확정할 때의 Lv${at} 기준으로 만들고 있어요. <button type="button" data-act="growRegen">Lv${now} 기준으로 다시 만들기</button></div>`;
+}
 function renderDesign(){
   const z = DZ(); if(!z || z.hidden) return;
   if(D.step === 3) D.step = 4; if(D.step === 7) D.step = 6;
   const body = ({ 1:P1, 2:P2, 4:P4, 5:P5, 6:P6 })[D.step]();
-  z.innerHTML = `<div class="dz">${stepper()}<div class="busy" id="dBusy" ${D.busy ? '' : 'hidden'}><span class="t">${esc(D.busy?.text || '')}</span><div class="progress"><i style="width:${Math.round((D.busy?.frac || 0) * 100)}%"></i></div></div>${body}</div>`;
+  z.innerHTML = `<div class="dz">${stepper()}${growNote()}<div class="busy" id="dBusy" ${D.busy ? '' : 'hidden'}><span class="t">${esc(D.busy?.text || '')}</span><div class="progress"><i style="width:${Math.round((D.busy?.frac || 0) * 100)}%"></i></div></div>${body}</div>`;
   bindDesign(); fillPreviews();
 }
 const foot = (left, btn) => `<div class="dfoot"><span class="t">${left || ''}</span>${btn || ''}</div>`;
@@ -536,6 +542,7 @@ function bindDesign(){
   z.querySelectorAll('details[data-fold]').forEach(d => d.addEventListener('toggle', () => { D[d.dataset.fold] = d.open; const m = d.querySelector('summary .muted'); if(m && d.dataset.fold === 'mapOpen') m.textContent = d.open ? '접기' : '틀린 연결이 있으면 열어서 고치기'; }));
 }
 const ACT = {
+  growRegen:() => { D.growSnap = Grow.snap(); D._auto = null; PV.clear(); if(D.guide) D.guide.tk = tokens(); renderDesign(); if(D.gates.g3) generateAll(); saveSoon(); },
   go:el => go(+el.dataset.k),
   conOpen:() => { D.conOpen = !D.conOpen; renderBanner(); },
   conOk:el => { const c = D.rfp.cons.find(x => x.id === el.dataset.id); if(c) c.status = 'ok'; afterConChange(); },
@@ -580,12 +587,12 @@ const ACT = {
   toReview:() => { setTab('review'); $('#results').scrollIntoView({ behavior:'smooth' }); },
 };
 async function confirmGate(g){
-  if(g === 1){ await ensureFonts(D.ms.text); resetMetrics(); D.gates.g1 = true; D.guide = { version:'1.0', date:today(), tk:tokens(), sig:guideSig(), history:[{ v:'1.0', date:today(), note:`처음 확정 · ${MOODS[D.mood].name}` }] }; go(4); }
+  if(g === 1){ await ensureFonts(D.ms.text); resetMetrics(); D.gates.g1 = true; D.growSnap = Grow.snap(); D.guide = { version:'1.0', date:today(), tk:tokens(), sig:guideSig(), history:[{ v:'1.0', date:today(), note:`처음 확정 · ${MOODS[D.mood].name}` }] }; go(4); }
   else if(g === 2){ D.gates.g2 = true; D.samples = pickSamples(); go(5); }
   else if(g === 3){ D.style = styleFromSamples(); D.gates.g3 = true; const [a, b] = D.guide.version.split('.').map(Number); D.guide.version = `${a}.${b + 1}`; D.guide.history.push({ v:D.guide.version, date:today(), note:`스타일 확정 · 샘플 ${D.samples.map(s => s.n + '쪽 ' + s.pick).join(', ')}` }); D.pages = {}; go(6); }
   saveSoon();
 }
-function resetProject(){ D.gates = { g1:false, g2:false, g3:false }; D.mapping = null; D.plan = { pat:{}, dec:{} }; D.samples = []; D.style = null; D.pages = {}; D.guide = null; D.review = { ran:false, acked:{}, issues:[] }; D._an = null; D._auto = null; D.sel = null; PV.clear(); D.step = 1; }
+function resetProject(){ D.growSnap = null; D.gates = { g1:false, g2:false, g3:false }; D.mapping = null; D.plan = { pat:{}, dec:{} }; D.samples = []; D.style = null; D.pages = {}; D.guide = null; D.review = { ran:false, acked:{}, issues:[] }; D._an = null; D._auto = null; D.sel = null; PV.clear(); D.step = 1; }
 async function takeFiles(id, files){
   dmsg(id);
   try{
@@ -625,7 +632,7 @@ async function saveState(){
   const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', itemsFrom:D.rfp.itemsFrom || null, itemsOk:!!D.rfp.itemsOk, docs:(D.rfp.docs || []).map(d => ({ name:d.name, kind:d.kind, items:d.items, cons:d.cons, by:d.by, mode:d.mode, basis:d.basis, pages:d.pages })) } : null,
     grid:D.grid, mood:D.mood, colors:D.colors, roles:{ body:famOf(D.roles.body).label, title:famOf(D.roles.title).label, num:D.roles.num ? famOf(D.roles.num).label : null }, iconMap:D.iconMap,
     mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
-    pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked, refTraits:D.refTraits || null, refUse:D.refUse !== false };
+    pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked, refTraits:D.refTraits || null, refUse:D.refUse !== false, growSnap:D.growSnap || null };
   try{ await W.set('design/state', st); }catch(e){ console.warn('design save', e); }
 }
 async function loadState(){
@@ -634,7 +641,7 @@ async function loadState(){
   Object.assign(D, { grid:st.grid || null, mood:st.mood || 'navy', colors:st.colors || {}, iconMap:st.iconMap || {}, mapping:st.mapping || null, plan:st.plan || { pat:{}, dec:{} }, style:st.style || null, samples:st.samples || [] });
   if(st.refTraits) D.refTraits = st.refTraits; if(st.refUse === false) D.refUse = false;
   if(st.rfp){ D.rfp = { ...st.rfp, pages:0 }; if(!D.rfp.docs && D.rfp.name !== '직접 입력') D.rfp.docs = [{ name:D.rfp.name, kind:'과업지시서', items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', pages:0 }]; }
-  D.restoredGates = st.gates; D.restoredGuide = st.guide; D.restoredPageOpt = st.pageOpt || {}; D.review.acked = st.acked || {};
+  D.restoredGates = st.gates; D.restoredGrowSnap = st.growSnap || null; D.restoredGuide = st.guide; D.restoredPageOpt = st.pageOpt || {}; D.review.acked = st.acked || {};
   D.restored = `${st.msSig.name} · ${new Date(st.at).toLocaleDateString('ko-KR')}`; D.restoredSig = st.msSig; D.restoredRoles = st.roles;
   renderBanner(); renderDesign();
 }
@@ -644,7 +651,7 @@ takeFiles = async function(id, files){
   await _takeFiles(id, files);
   if(id === 'ms' && D.ms && D.restoredSig && D.restoredSig.name === D.ms.name && D.restoredSig.pages === D.ms.pages.length && D.restoredGates){
     const rr = D.restoredRoles || {}; const byLabel = l => families().find(f => f.label === l)?.key; if(rr.body && byLabel(rr.body)) D.roles.body = byLabel(rr.body); if(rr.title && byLabel(rr.title)) D.roles.title = byLabel(rr.title);
-    D.gates = { ...D.restoredGates }; if(D.restoredGuide && D.gates.g1){ D.guide = { ...D.restoredGuide, tk:tokens(), sig:guideSig() }; }
+    D.gates = { ...D.restoredGates }; D.growSnap = D.gates.g1 ? D.restoredGrowSnap || Grow.snap() : null; if(D.restoredGuide && D.gates.g1){ D.guide = { ...D.restoredGuide, tk:tokens(), sig:guideSig() }; }
     for(const [n, o] of Object.entries(D.restoredPageOpt || {})) D.pages[n] = { n:+n, opt:o, hist:[] };
     D.restoredSig = null; D.restoredGates = null; dmsg('ms', 'info', '저장된 확정 상태를 이어 붙였습니다.');
     if(D.gates.g3){ D.step = 6; generateAll(); } else if(D.gates.g2) D.step = 5; else if(D.gates.g1) D.step = 4; renderDesign();
@@ -663,5 +670,6 @@ window.Design = {
     Vault.init().then(() => { Vault.render(); if(S.dbTried && W.ok()) this.onWs(); });
   },
   async onWs(){ if(!D.ms) await loadState(); await Vault.restore(); },
+  onGrow(){ if(!D.gates.g1){ D._auto = null; PV.clear(); } renderDesign(); },
 };
 window.Design.init();
