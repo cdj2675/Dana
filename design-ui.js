@@ -146,35 +146,156 @@ function moodSamplePage(){ const ps = contentPages(); let best = ps[0], bv = -1;
   return best?.n; }
 function topicsInMs(){ const t = D.ms?.text || ''; return Object.keys(ICON_TOPICS).filter(k => ICON_TOPICS[k].re.test(t)); }
 function P2(){
-  const n = moodSamplePage(); const L = locks(); const m = MOODS[D.mood]; const refCols = [...new Set(D.assets.refs.flatMap(r => r.palette || []))].slice(0, 8);
-  const prim = D.colors.primary || m.primary, acc = D.colors.accent || m.accent; const tk = tokens();
+  const L = locks(); const m = MOODS[D.mood]; const refCols = [...new Set(D.assets.refs.flatMap(r => r.palette || []))].slice(0, 8);
+  const prim = D.colors.primary || m.primary, acc = D.colors.accent || m.accent; const tk = tokens(); const C = tk.color, G = tk.grid;
   const sw = (list, cur, k) => list.map(c => `<button type="button" data-act="color" data-k="${k}" data-v="${c}" aria-pressed="${c.toUpperCase() === cur.toUpperCase()}" style="background:${c}" title="${c}"></button>`).join('');
   const topics = topicsInMs();
   const faceMiss = L.face && !families().some(f => famMatch(f.label, L.face) || f.faces.some(x => famMatch(x.family, L.face)));
   const g1 = D.gates.g1; const dirty = g1 && guideDirty();
-  return `<section class="dpanel">${phead('디자인 시스템', `같은 쪽(원고 ${n}쪽)을 세 가지 무드로 그렸습니다. 하나를 고르고, 필요하면 색만 한두 개 바꾸세요.`, g1 ? `<span class="vtag">디자인 가이드 v${esc(D.guide.version)}</span>` : '')}
-    <div class="moods">${Object.entries(MOODS).map(([id, mm]) => `<button type="button" class="mood" data-act="mood" data-v="${id}" aria-pressed="${D.mood === id}"><div class="pv"><img alt="${esc(mm.name)} 무드로 그린 ${n}쪽" data-pv="mood:${id}:${n}"></div><div class="mh"><b>${esc(mm.name)}</b><span class="sw">${[id === D.mood ? prim : mm.primary, mix(id === D.mood ? prim : mm.primary, '#FFFFFF', .88), mm.point, id === D.mood ? acc : mm.accent].map(c => `<i style="background:${c}"></i>`).join('')}</span>${id === 'navy' ? '<span class="tag rec">권장</span>' : ''}</div></button>`).join('')}</div>
+  const gl = window.Grow ? (D.growSnap?.lv && g1 ? D.growSnap.lv : Grow.state?.level || 1) : 1;
+  const base = D.myDs ? `내 디자인 시스템 「${esc(D.myDs.name)}」` : `기본 팔레트 「${esc(m.name)}」`;
+  // 색: 역할별 견본
+  const chip = (c, name, use) => `<div class="dsw"><i style="background:${c}"></i><div><b>${name}</b><code>${c.toUpperCase()}</code><small>${use}</small></div></div>`;
+  const colors = [[C.p1, '주색', '제목·표 머리·강조 면'], [C.p0, '진한 주색', '번호·진한 글자'], [C.note, '옅은 바탕', '헤드 메시지·카드 바탕'], [C.line, '괘선', '표·상자 선'],
+    [C.point, '포인트', '아이콘·보조 강조'], [C.accent, '강조색', '마지막 단계·핵심 수치'], [C.ink, '글자', '본문'], [C.ink2, '보조 글자', '설명·캡션']];
+  // 글꼴·치수
+  const fb = esc(famOf(D.roles.body).label), ft = esc(famOf(D.roles.title).label);
+  const ts = [['절 제목', tk.size.title, 700, ft], ['헤드 메시지', tk.size.msg, 700, ft], ['소제목', tk.size.sub, 700, ft], ['본문', tk.size.body, 400, fb], ['표', tk.size.table, 400, fb], ['캡션·출처', tk.size.caption, 400, fb]];
+  const pt = v => `${r1(v)}pt`, mm = v => `${r1(v / MM)}mm`;
+  // 그리드: 쪽 그림(여백·머리틀·본문 영역)
+  const S2 = 150 / G.w, gw = G.w * S2, gh = G.h * S2;
+  const grid = `<svg class="dsgrid" viewBox="0 0 ${r1(gw + 2)} ${r1(gh + 2)}" width="${Math.round(gw + 2)}" height="${Math.round(gh + 2)}" role="img" aria-label="쪽 그리드"><g transform="translate(1 1)">
+    <rect width="${r1(gw)}" height="${r1(gh)}" fill="#fff" stroke="#9AA3AB"/>
+    <rect x="${r1(G.ml * S2)}" y="${r1(G.mt * S2)}" width="${r1((G.w - G.ml - G.mr) * S2)}" height="${r1((G.bodyTop - G.mt) * S2)}" fill="${C.p2}" />
+    <rect x="${r1(G.ml * S2)}" y="${r1(G.bodyTop * S2)}" width="${r1((G.w - G.ml - G.mr) * S2)}" height="${r1((G.h - G.mb - G.bodyTop) * S2)}" fill="none" stroke="${C.p1}" stroke-dasharray="3 2"/>
+    <text x="${r1(gw / 2)}" y="${r1((G.mt + (G.bodyTop - G.mt) / 2) * S2 + 3)}" font-size="8" text-anchor="middle" fill="${C.p0}">머리틀</text>
+    <text x="${r1(gw / 2)}" y="${r1(gh / 2)}" font-size="9" text-anchor="middle" fill="${C.p1}">본문 영역</text></g></svg>`;
+  const dims = [['쪽 크기', `${mm(G.w)} × ${mm(G.h)}`], ['여백 위·아래', `${mm(G.mt)} · ${mm(G.mb)}`], ['여백 좌·우', `${mm(G.ml)} · ${mm(G.mr)}`], ['본문 시작', mm(G.bodyTop)], ['본문 폭', mm(G.w - G.ml - G.mr)], ['도련', mm(G.bleed || 0)]];
+  const rules = [['줄 간격', `${tk.lh}`], ['모서리', pt(tk.r)], ['상자 안 여백', '11pt'], ['묶음 간격', tk.ref?.dens === 'high' ? '좁게' : tk.ref?.dens === 'low' ? '넓게' : '기본'], ['그림자', '쓰지 않음'], ['큰 도식', '쪽마다 1개']];
+  const icT = iconColors(tk.iconTone, tk.color);
+  return `<section class="dpanel">${phead('디자인 시스템', 'Dana 기본값과 올린 디자인 자료(레퍼런스·그리드·폰트)로 정한 색·글꼴·치수·그리드·아이콘입니다. 팔레트를 고르고 필요하면 색만 바꾸거나, 가지고 있는 디자인 시스템을 넣으세요.', g1 ? `<span class="vtag">디자인 가이드 v${esc(D.guide.version)}</span>` : '')}
+    <div class="dsbar"><span class="lbl">기본 팔레트</span>${Object.entries(MOODS).map(([id, mm2]) => `<button type="button" class="moodchip" data-act="mood" data-v="${id}" aria-pressed="${D.mood === id}"><span class="sw">${[id === D.mood ? prim : mm2.primary, mix(id === D.mood ? prim : mm2.primary, '#FFFFFF', .88), mm2.point, id === D.mood ? acc : mm2.accent].map(c => `<i style="background:${c}"></i>`).join('')}</span>${esc(mm2.name)}${id === 'navy' ? ' <small>권장</small>' : ''}</button>`).join('')}
+      <span class="dsfrom">지금: ${base}${gl > 1 ? ` · Dana Lv${gl} 체질` : ''}${refOn() ? ' · 레퍼런스 성향 반영' : ''}</span></div>
     <div class="sysgrid2">
+      <div class="blk"><h3>색</h3><div class="dsws">${colors.map(x => chip(...x)).join('')}</div>
+        <div class="swpick"><span class="lbl">주색 바꾸기</span>${sw([...new Set([...(D.myDs?.colors?.primary ? [D.myDs.colors.primary] : []), ...m.primaries, ...refCols.filter(c => lum(c) < .25)])], prim, 'primary')}</div>
+        <div class="swpick"><span class="lbl">강조색 바꾸기</span>${sw([...new Set([...(D.myDs?.colors?.accent ? [D.myDs.colors.accent] : []), ...m.accents, ...refCols.filter(c => lum(c) >= .12)])], acc, 'accent')}</div>
+        ${refCols.length ? '<p class="note">뒤쪽 색은 레퍼런스에서 뽑았습니다.</p>' : ''}</div>
+      <div class="blk"><h3>글꼴 · 글자 크기</h3><div class="dstype">${ts.map(([n, s, w, f]) => `<div><span class="k">${n}</span><span class="v" style="font-size:${Math.min(22, s * 1.25)}px;font-weight:${w}">가나다 Aa 123</span><span class="m">${pt(s)} · ${f}</span></div>`).join('')}</div>
+        <p class="note">글자 크기 단계 ${new Set(ts.map(x => x[1])).size}개 · 줄 간격 ${tk.lh}${L.bodyMin ? ` · 과업지시서 하한 본문 ${L.bodyMin}pt` : ''}</p></div>
+      <div class="blk"><h3>그리드 · 치수</h3><div class="dsgridw">${grid}<dl class="dsdim">${dims.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>
+        <dl class="dsdim dsrules">${rules.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+        <p class="note">그리드는 ${esc(G.name || '기본 그리드')}${G.src === 'default' ? '(디자인 자료에 그리드 PPTX를 올리면 그 여백을 씁니다)' : ''}.</p></div>
+      <div class="blk"><h3>아이콘 · 원고 주제 ${topics.length}개</h3><p class="note">선 굵기 1.8 · 둥근 끝 · ${tk.iconTone === 'dark' ? '진한 바탕에 밝은 그림' : '옅은 바탕에 진한 그림'}. 모든 쪽이 같은 세트를 씁니다. 바꿀 주제를 누르세요.</p>
+        <div class="icons">${topics.map(t => `<button type="button" data-act="iconOpen" data-v="${esc(t)}" aria-pressed="${D.iconOpen === t}"><img alt="" src="${iconDataURL(iconFor(t), icT.fg, icT.bg)}">${esc(t)}${String(D.iconMap[t] || '').startsWith('file:') ? '<small>올린 파일</small>' : ''}</button>`).join('') || '<span class="muted">아이콘이 필요한 주제를 찾지 못했습니다.</span>'}</div>
+        ${D.iconOpen ? `<div class="iconpick" role="group" aria-label="${esc(D.iconOpen)} 아이콘 고르기">${Object.keys(ICONS).map(k => `<button type="button" data-act="iconSet" data-v="${k}" title="${ICON_NAMES[k] || k}"><img alt="${ICON_NAMES[k] || k}" src="${iconDataURL(k, tk.color.p1)}"></button>`).join('')}</div>` : ''}</div>
       ${refTraitsHtml()}
-      <div class="blk"><h3>색 조정 (${esc(m.name)})</h3>
-        <div class="swpick"><span class="lbl">주색</span>${sw([...m.primaries, ...refCols.filter(c => lum(c) < .25)], prim, 'primary')}</div>
-        <div class="swpick"><span class="lbl">강조색</span>${sw([...m.accents, ...refCols.filter(c => lum(c) >= .12)], acc, 'accent')}</div>
-        ${refCols.length ? '<p class="note">뒤쪽 색은 레퍼런스에서 뽑았습니다.</p>' : ''}
-        <h3 style="margin-top:6px">글꼴</h3><div class="fontrow"><span>본문</span><span>${esc(famOf(D.roles.body).label)} ${tk.size.body}pt · 줄 간격 ${tk.lh}</span><span>제목</span><span>${esc(famOf(D.roles.title).label)} ${tk.size.title}pt</span><span>표·캡션</span><span>${tk.size.table}pt · ${tk.size.caption}pt</span></div>
-        <h3 style="margin-top:6px">과업지시서 잠금</h3><ul class="issues">${[L.bodyMin ? `<li>🔒 본문 글자 ${L.bodyMin}pt 아래로 내려가지 않음</li>` : '', L.figMin ? `<li>🔒 표·그림 글자 ${L.figMin}pt 이상</li>` : '', L.pagesMax ? `<li>🔒 총 ${L.pagesMax}쪽 이내</li>` : '', L.blind ? '<li>🔒 블라인드 평가 — 업체 식별 요소 금지</li>' : '', L.face ? `<li>🔒 지정 서체 ${esc(L.face)}</li>` : ''].join('') || '<li class="muted">잠금 항목 없음</li>'}<li>그림자 쓰지 않음 · 쪽마다 큰 도식 1개 · 본문 채움 70% 이상(완성도 기준)</li></ul>
-      </div>
-      <div class="blk"><h3>아이콘 세트 · 원고 주제 ${topics.length}개</h3><p class="note">모든 쪽이 같은 세트를 씁니다. 바꿀 주제를 누르세요.</p>
-        <div class="icons">${topics.map(t => `<button type="button" data-act="iconOpen" data-v="${esc(t)}" aria-pressed="${D.iconOpen === t}"><img alt="" src="${iconDataURL(iconFor(t), iconColors(tk.iconTone, tk.color).fg, iconColors(tk.iconTone, tk.color).bg)}">${esc(t)}${String(D.iconMap[t] || '').startsWith('file:') ? '<small>올린 파일</small>' : ''}</button>`).join('') || '<span class="muted">아이콘이 필요한 주제를 찾지 못했습니다.</span>'}</div>
-        ${D.iconOpen ? `<div class="iconpick" role="group" aria-label="${esc(D.iconOpen)} 아이콘 고르기">${Object.keys(ICONS).map(k => `<button type="button" data-act="iconSet" data-v="${k}" title="${ICON_NAMES[k] || k}"><img alt="${ICON_NAMES[k] || k}" src="${iconDataURL(k, tk.color.p1)}"></button>`).join('')}</div>` : ''}
-      </div>
+      <div class="blk"><h3>과업지시서 잠금</h3><ul class="issues">${[L.bodyMin ? `<li>🔒 본문 글자 ${L.bodyMin}pt 아래로 내려가지 않음</li>` : '', L.figMin ? `<li>🔒 표·그림 글자 ${L.figMin}pt 이상</li>` : '', L.pagesMax ? `<li>🔒 총 ${L.pagesMax}쪽 이내</li>` : '', L.blind ? '<li>🔒 블라인드 평가 — 업체 식별 요소 금지</li>' : '', L.face ? `<li>🔒 지정 서체 ${esc(L.face)}</li>` : ''].join('') || '<li class="muted">잠금 항목 없음</li>'}<li>본문 채움 ${Math.round(QUALITY.useTarget * 100)}% 이상(완성도 기준)</li></ul></div>
     </div>
+    ${myDsHtml()}
     ${foot(g1 ? (dirty ? '바뀐 내용이 있습니다. 가이드를 갱신하면 버전이 올라갑니다.' : `확정됨 · ${esc(D.guide.date)}`) : '확정하면 디자인 가이드 v1.0이 만들어지고 2단계로 넘어갑니다.',
       g1 ? `<button type="button" data-act="dlGuide">가이드 받기(.md·.json)</button>${dirty ? '<button type="button" class="primary" data-act="bump">가이드 갱신</button>' : ''}<button type="button" class="primary big" data-act="go" data-k="4">다음: 쪽 계획 →</button>`
          : gateBtn(1, '이 디자인 시스템으로 확정', faceMiss, faceMiss ? `과업지시서 지정 서체 「${L.face}」 파일을 디자인 자료에 올려 주세요.` : ''))}
     ${D.bumpAsk ? `<div class="msg info">가이드를 v${esc(D.guide.version)}로 올렸습니다. 이미 만든 쪽에도 다시 적용할까요? <button type="button" data-act="bumpAll">모든 쪽에 다시 적용</button> <button type="button" class="ghost" data-act="bumpLater">이후 쪽부터(기본)</button></div>` : ''}
   </section>`;
 }
-function guideSig(){ return JSON.stringify([D.mood, D.colors, D.roles, D.iconMap, D.grid, locks()]); }
+// ───────────── 내 디자인 시스템: 파일(JSON·CSS·PDF·이미지) 또는 직접 입력 → 색·글꼴·크기·줄 간격·모서리·여백 덮어쓰기
+function myDsHtml(){
+  const M = D.myDs, f = D.dsForm || (D.dsForm = dsFormFrom(M));
+  const fams = families();
+  const inp = (k, label, type = 'text', ph = '', extra = '') => `<label><span>${label}</span><input type="${type}" data-dsf="${k}" value="${esc(f[k] ?? '')}" placeholder="${esc(ph)}" ${extra}></label>`;
+  const col = (k, label) => `<label><span>${label}</span><span class="dscol"><input type="color" data-dsf="${k}" value="${/^#[0-9a-f]{6}$/i.test(f[k] || '') ? f[k] : '#ffffff'}" aria-label="${label} 고르기"><input type="text" data-dsf="${k}" value="${esc(f[k] || '')}" placeholder="#1F3A68" maxlength="7" aria-label="${label} 값"></span></label>`;
+  const fsel = (k, label) => `<label><span>${label}</span><select data-dsf="${k}"><option value="">그대로</option>${fams.map(x => `<option value="${esc(x.label)}"${f[k] === x.label ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}${f[k] && !fams.some(x => x.label === f[k]) ? `<option value="${esc(f[k])}" selected>${esc(f[k])} (파일 없음)</option>` : ''}</select></label>`;
+  return `<details class="blk dfold myds" ${D.dsOpen || M ? 'open' : ''} data-fold="dsOpen"><summary><b>내 디자인 시스템</b>${M ? `<span class="tag t-done">적용 중 · ${esc(M.name)}</span>` : '<span class="muted">가지고 있는 디자인 시스템을 넣으면 기본 팔레트 대신 씁니다</span>'}</summary>
+    <div class="mydsgrid"><div>${dropZone('ds', '디자인 시스템 파일 선택', 'JSON·CSS·PDF·PNG·JPG', '.json,.css,.pdf,.png,.jpg,.jpeg,.webp', false)}
+      <p class="note">Dana 가이드(.json), 디자인 토큰 JSON, CSS 변수, 브랜드·디자인 가이드 PDF나 이미지를 읽어 아래 칸을 채웁니다. PDF·이미지는 Claude가 읽습니다. 읽은 값을 확인하고 「적용」을 누르세요.</p>${msgHtml('ds')}</div>
+    <div class="dsform"><div class="dsrow">${inp('name', '이름', 'text', '예: 우리 회사 제안서 v2', 'maxlength="40"')}</div>
+      <div class="dsrow">${col('primary', '주색')}${col('accent', '강조색')}${col('ink', '글자색')}${col('bg2', '옅은 바탕')}</div>
+      <div class="dsrow">${fsel('fontBody', '본문 서체')}${fsel('fontTitle', '제목 서체')}${inp('body', '본문 pt', 'number', '11', 'min="8" max="16" step="0.5"')}${inp('title', '제목 pt', 'number', '18', 'min="12" max="32" step="0.5"')}${inp('sub', '소제목 pt', 'number', '13.5', 'min="9" max="24" step="0.5"')}${inp('lh', '줄 간격', 'number', '1.6', 'min="1.2" max="2.2" step="0.05"')}${inp('r', '모서리 pt', 'number', '4', 'min="0" max="16" step="1"')}</div>
+      <div class="dsrow">${inp('mt', '여백 위 mm', 'number', '10', 'min="0" max="40" step="0.5"')}${inp('mb', '여백 아래 mm', 'number', '15', 'min="0" max="40" step="0.5"')}${inp('ml', '여백 왼쪽 mm', 'number', '15', 'min="0" max="40" step="0.5"')}${inp('mr', '여백 오른쪽 mm', 'number', '15', 'min="0" max="40" step="0.5"')}${inp('bodyTop', '본문 시작 mm', 'number', '30', 'min="10" max="80" step="0.5"')}</div>
+      <div class="row"><button type="button" class="primary" data-act="dsApply">적용</button>${M ? '<button type="button" class="ghost" data-act="dsClear">내 디자인 시스템 빼기</button>' : ''}<span class="note">빈 칸은 기본값을 씁니다. 과업지시서 잠금(본문 하한 등)은 언제나 먼저입니다.</span></div></div></div></details>`;
+}
+function dsFormFrom(M){
+  const G = D.grid || DEFAULT_GRID(); const mm = v => v == null ? '' : r1(v / MM);
+  if(!M) return { name:'', primary:'', accent:'', ink:'', bg2:'', fontBody:'', fontTitle:'', body:'', title:'', sub:'', lh:'', r:'', mt:'', mb:'', ml:'', mr:'', bodyTop:'' };
+  return { name:M.name || '', primary:M.colors?.primary || '', accent:M.colors?.accent || '', ink:M.colors?.ink || '', bg2:M.colors?.bg2 || '', fontBody:M.font?.body || '', fontTitle:M.font?.title || '',
+    body:M.size?.body ?? '', title:M.size?.title ?? '', sub:M.size?.sub ?? '', lh:M.lh ?? '', r:M.r ?? '', mt:M.grid ? mm(M.grid.mt) : '', mb:M.grid ? mm(M.grid.mb) : '', ml:M.grid ? mm(M.grid.ml) : '', mr:M.grid ? mm(M.grid.mr) : '', bodyTop:M.grid ? mm(M.grid.bodyTop) : '' };
+  void G;
+}
+const hex6 = v => { const s = String(v || '').trim(); const m = s.match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i); if(!m) return null; let h = m[1]; if(h.length === 3) h = h.split('').map(c => c + c).join(''); return '#' + h.toUpperCase(); };
+const numIn = (v, lo, hi) => { const n = parseFloat(v); return isFinite(n) ? Math.max(lo, Math.min(hi, n)) : null; };
+// 폼 값 → D.myDs(저장되는 값) → D.colors·D.roles·D.grid·D.dsOver에 반영
+function dsFromForm(f){
+  const g = ['mt', 'mb', 'ml', 'mr', 'bodyTop'].some(k => numIn(f[k], 0, 80) != null);
+  return { name:(f.name || '').trim() || '내 디자인 시스템',
+    colors:{ primary:hex6(f.primary), accent:hex6(f.accent), ink:hex6(f.ink), bg2:hex6(f.bg2) },
+    font:{ body:f.fontBody || null, title:f.fontTitle || null },
+    size:{ body:numIn(f.body, 8, 16), title:numIn(f.title, 12, 32), sub:numIn(f.sub, 9, 24) }, lh:numIn(f.lh, 1.2, 2.2), r:numIn(f.r, 0, 16),
+    grid:g ? { mt:numIn(f.mt, 0, 40) != null ? numIn(f.mt, 0, 40) * MM : null, mb:numIn(f.mb, 0, 40) != null ? numIn(f.mb, 0, 40) * MM : null, ml:numIn(f.ml, 0, 40) != null ? numIn(f.ml, 0, 40) * MM : null, mr:numIn(f.mr, 0, 40) != null ? numIn(f.mr, 0, 40) * MM : null, bodyTop:numIn(f.bodyTop, 10, 80) != null ? numIn(f.bodyTop, 10, 80) * MM : null } : null };
+}
+function applyMyDs(M){
+  D.myDs = M; D.dsForm = dsFormFrom(M);
+  if(!M){ D.dsOver = null; D.colors = { primary:null, accent:null }; return []; }
+  const notes = [];
+  if(M.colors.primary) D.colors.primary = M.colors.primary; if(M.colors.accent) D.colors.accent = M.colors.accent;
+  const byLabel = l => families().find(x => x.label === l || x.faces.some(y => famMatch(y.family, l)) || famMatch(x.label, l))?.key;
+  for(const [k, role] of [['body', 'body'], ['title', 'title']]){ const l = M.font[k]; if(!l) continue; const key = byLabel(l); if(key) D.roles[role] = key; else notes.push(`「${l}」 폰트 파일이 없어 지금 서체를 씁니다. 디자인 자료에 TTF·OTF를 올리면 그 서체로 바꿉니다.`); }
+  if(M.grid){ const G0 = D.grid || DEFAULT_GRID(); const G = { ...G0, name:`${M.name} 그리드`, src:'myds' }; for(const k of ['mt', 'mb', 'ml', 'mr', 'bodyTop']) if(M.grid[k] != null) G[k] = M.grid[k]; if(G.bodyTop <= G.mt) G.bodyTop = G.mt + 15 * MM; D.grid = G; }
+  D.dsOver = { ink:M.colors.ink, bg2:M.colors.bg2, size:M.size, lh:M.lh, r:M.r };
+  return notes;
+}
+// 파일 읽기
+const DS_PROMPT = `다음은 회사·브랜드의 디자인 시스템(디자인 가이드) 자료입니다. 제안서 디자인에 쓸 값만 JSON 하나로 답하세요. 자료에 없는 값은 null로 둡니다. 추측해서 채우지 마세요.
+{"name":"디자인 시스템 이름","colors":{"primary":"#RRGGBB 대표색","accent":"#RRGGBB 강조색","ink":"#RRGGBB 본문 글자색","bg2":"#RRGGBB 옅은 바탕색"},"font":{"body":"본문 서체 이름","title":"제목 서체 이름"},"size":{"body":본문pt,"title":제목pt,"sub":소제목pt},"lineHeight":줄간격배수,"radius":모서리pt,"margin_mm":{"top":n,"bottom":n,"left":n,"right":n}}`;
+function dsFromLoose(j){
+  // Dana 가이드, 디자인 토큰, 평평한 키-값 모두 받아 같은 모양으로
+  if(j?.page && j?.color) return { name:j.name, colors:{ primary:j.color.primary?.[1] || j.color.primary?.[0], accent:j.color.accent, ink:j.color.ink?.[0], bg2:j.color.background?.[1] }, font:{ body:j.font?.body?.family, title:j.font?.title?.family }, size:{ body:j.font?.body?.size, title:j.font?.title?.size, sub:j.font?.subtitle?.size }, lh:j.font?.body?.lineHeight, r:j.component?.radius, mm:j.page.margin ? { top:j.page.margin.top / MM, bottom:j.page.margin.bottom / MM, left:j.page.margin.left / MM, right:j.page.margin.right / MM } : null, bodyTop:j.page.body?.y?.[0] != null ? j.page.body.y[0] / MM : null };
+  const flat = {}; (function walk(o, p){ if(o && typeof o === 'object') for(const [k, v] of Object.entries(o)){ if(v && typeof v === 'object' && !Array.isArray(v) && !('value' in v && typeof v.value !== 'object')) walk(v, p + '.' + k); else flat[(p + '.' + k).toLowerCase()] = v && typeof v === 'object' && 'value' in v ? v.value : v; } })(j, '');
+  const find = (re, ok) => { for(const [k, v] of Object.entries(flat)) if(re.test(k) && ok(v)) return v; return null; };
+  const isHex = v => !!hex6(v), isNum = v => isFinite(parseFloat(v));
+  return { name:j.name || j.title || null,
+    colors:{ primary:find(/(primary|brand|main|대표|주색)/, isHex), accent:find(/(accent|secondary|point|강조|보조)/, isHex), ink:find(/(ink|text|body.*color|foreground|글자)/, isHex), bg2:find(/(background|surface|tint|bg|바탕)/, v => isHex(v) && lum(hex6(v)) > .8) },
+    font:{ body:find(/(font.*(body|base|text)|body.*font|본문.*서체)/, v => typeof v === 'string' && !isNum(v)), title:find(/(font.*(title|heading|display)|(title|heading).*font|제목.*서체)/, v => typeof v === 'string' && !isNum(v)) },
+    size:{ body:find(/(size.*(body|base|text)|body.*size)/, isNum), title:find(/(size.*(title|h1|heading)|(title|h1).*size)/, isNum), sub:find(/(size.*(sub|h2)|(subtitle|h2).*size)/, isNum) },
+    lh:find(/(line.?height|leading|줄)/, isNum), r:find(/(radius|corner|모서리)/, isNum), mm:null };
+}
+function dsFromCss(t){
+  const j = {}; for(const m of t.matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) j[m[1]] = m[2].trim().replace(/^["']|["']$/g, '').replace(/px$|pt$/, '');
+  return dsFromLoose(j);
+}
+function dsToForm(x){
+  const v = n => n == null || n === '' ? '' : String(parseFloat(n)).replace(/^NaN$/, '');
+  const mm = x.mm || x.margin_mm || null;
+  return { name:x.name || '', primary:hex6(x.colors?.primary) || '', accent:hex6(x.colors?.accent) || '', ink:hex6(x.colors?.ink) || '', bg2:hex6(x.colors?.bg2) || '',
+    fontBody:x.font?.body || '', fontTitle:x.font?.title || '', body:v(x.size?.body), title:v(x.size?.title), sub:v(x.size?.sub), lh:v(x.lh ?? x.lineHeight), r:v(x.r ?? x.radius),
+    mt:v(mm?.top), mb:v(mm?.bottom), ml:v(mm?.left), mr:v(mm?.right), bodyTop:v(x.bodyTop) };
+}
+async function takeDs(files){
+  const f = files[0], ext = extOf(f); dmsg('ds');
+  busy(`「${f.name}」에서 디자인 시스템을 읽는 중…`, .4);
+  try{
+    let x = null;
+    if(ext === 'json') x = dsFromLoose(JSON.parse(await f.text()));
+    else if(ext === 'css') x = dsFromCss(await f.text());
+    else if(['pdf', 'png', 'jpg', 'jpeg', 'webp'].includes(ext)){
+      if(!S.sample) throw { user:'이 화면에서는 PDF·이미지를 Claude에게 보낼 수 없습니다. JSON·CSS로 올리거나 아래 칸에 직접 적어 주세요.' };
+      let text = '', imgs = [];
+      if(ext === 'pdf'){ const pdf = await openPdf(f); const N = Math.min(pdf.numPages, 12);
+        for(let i = 1; i <= N; i++){ const pg = await pdf.getPage(i); const tc = await pg.getTextContent(); text += tc.items.map(it => it.str).join(' ') + '\n'; pg.cleanup(); }
+        if(S.imgLimits){ const cs = []; for(let i = 1; i <= Math.min(4, pdf.numPages); i++){ const pg = await pdf.getPage(i); cs.push(await growRender(pg, 700)); pg.cleanup(); } imgs = [await growSheet(cs)]; }
+        try{ pdf.destroy(); }catch(e){} }
+      else { if(!S.imgLimits) throw { user:'이 화면에서는 이미지를 Claude에게 보낼 수 없습니다.' }; imgs = [f]; }
+      const raw = await S.sample.json(DS_PROMPT + (text.trim() ? '\n\n자료 글자:\n' + text.slice(0, 12000) : '\n\n(첨부 이미지 참고)'), imgs.length ? { images:imgs } : undefined);
+      x = { name:raw?.name, colors:raw?.colors || {}, font:raw?.font || {}, size:raw?.size || {}, lh:raw?.lineHeight, r:raw?.radius, mm:raw?.margin_mm || null };
+    } else throw { user:`「${f.name}」은 디자인 시스템으로 읽을 수 없는 형식입니다. JSON·CSS·PDF·PNG·JPG를 올려 주세요.` };
+    const form = dsToForm(x); if(!form.name) form.name = f.name.replace(/\.[^.]+$/, '');
+    const got = Object.entries(form).filter(([k, v]) => k !== 'name' && v !== '').length;
+    D.dsForm = form; D.dsOpen = true;
+    dmsg('ds', got ? 'info' : 'warn', got ? `「${f.name}」에서 ${got}개 값을 읽었습니다. 확인한 뒤 「적용」을 누르세요.` : `「${f.name}」에서 쓸 만한 값을 찾지 못했습니다. 아래 칸에 직접 적어 주세요.`);
+  }catch(e){ console.error(e); dmsg('ds', 'err', e?.user || `「${f.name}」을 읽지 못했습니다.`); }
+  busy(null); renderDesign();
+}
+function guideSig(){ return JSON.stringify([D.mood, D.colors, D.roles, D.iconMap, D.grid, locks(), D.dsOver || null]); }
 function guideDirty(){ return D.guide && D.guide.sig !== guideSig(); }
 function tokensJson(){
   const tk = D.guide?.tk || tokens(); const G = tk.grid; const st = D.style || STYLE_A;
@@ -512,7 +633,7 @@ async function fillPreviews(){
 // 디자인 탭 자료 초기화: 올린 자료·고른 스타일·확정을 지우고, 보관 파일·저장된 진행 상태도 지움
 async function resetDesign(){
   D.resetAsk = false;
-  Object.assign(D, { rfp:null, ms:null, assets:{ grids:[], refs:[], fonts:[], icons:[], tokens:null }, refTraits:null, refUse:true, fams:[], roles:{ body:'@noto', title:'@noto', num:null },
+  Object.assign(D, { rfp:null, ms:null, assets:{ grids:[], refs:[], fonts:[], icons:[], tokens:null }, refTraits:null, refUse:true, myDs:null, dsOver:null, dsForm:null, fams:[], roles:{ body:'@noto', title:'@noto', num:null },
     grid:null, mood:'navy', colors:{ primary:null, accent:null }, iconMap:{}, msgs:{}, patEdit:false, mapOpen:false,
     restored:null, restoredSig:null, restoredGates:null, restoredGuide:null, restoredPageOpt:null, restoredRoles:null });
   resetProject(); resetMetrics(); PV.clear();
@@ -524,6 +645,9 @@ async function resetDesign(){
 function afterItemChange(){ D.rfp.itemsOk = false; D._an = null; D._auto = null; if(D.gates.g1) D.gates.g2 = false; renderDesign(); saveSoon(); }
 function bindDesign(){
   const z = DZ();
+  z.querySelectorAll('[data-dsf]').forEach(el => el.addEventListener('input', () => { const k = el.dataset.dsf; (D.dsForm ||= dsFormFrom(D.myDs))[k] = el.value;
+    if(el.type === 'color'){ const t = el.parentElement.querySelector('input[type=text]'); if(t) t.value = el.value.toUpperCase(); D.dsForm[k] = el.value.toUpperCase(); }
+    else if(el.type === 'text' && el.parentElement.classList.contains('dscol')){ const h = hex6(el.value); const c = el.parentElement.querySelector('input[type=color]'); if(h && c) c.value = h; } }));
   z.querySelectorAll('input[data-drop]').forEach(inp => { const id = inp.dataset.drop; const dz = $('#dz-' + id);
     inp.addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; if(f.length) takeFiles(id, f); });
     ['dragover', 'dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
@@ -556,6 +680,9 @@ const ACT = {
   itemsOk:() => { D.rfp.itemsOk = true; renderDesign(); saveSoon(); },
   rmItem:el => { D.rfp.items = D.rfp.items.filter(i => i.id !== el.dataset.id); if(D.mapping) delete D.mapping[el.dataset.id]; if(D.rfp.mode === 'derived') normDerived(D.rfp.items); afterItemChange(); },
   msOk:() => { D.ms.ok = true; renderDesign(); },
+  dsApply:() => { const F = D.dsForm || {}; if(!Object.entries(F).some(([k, v]) => k !== 'name' && String(v ?? '').trim())){ dmsg('ds', 'warn', '적용할 값이 없습니다. 파일을 올리거나 칸을 하나 이상 채워 주세요.'); renderDesign(); return; }
+    const notes = applyMyDs(dsFromForm(F)); dmsg('ds', notes.length ? 'warn' : 'info', notes.length ? notes.join(' ') : `「${D.myDs.name}」을 적용했습니다. 위의 색·글꼴·치수·그리드가 바뀌었습니다.`); resetMetrics(); PV.clear(); D._auto = null; renderDesign(); saveSoon(); },
+  dsClear:() => { applyMyDs(null); D.dsForm = null; dmsg('ds', 'info', '내 디자인 시스템을 뺐습니다. 기본 팔레트로 돌아갑니다.'); resetMetrics(); PV.clear(); renderDesign(); saveSoon(); },
   mood:el => { if(D.mood !== el.dataset.v){ D.mood = el.dataset.v; D.colors = { primary:null, accent:null }; } for(const k of [...PV.keys()]) if(k.startsWith('mood:')) PV.delete(k); renderDesign(); saveSoon(); },
   color:el => { D.colors[el.dataset.k] = el.dataset.v; for(const k of [...PV.keys()]) if(k.startsWith('mood:' + D.mood)) PV.delete(k); renderDesign(); saveSoon(); },
   iconOpen:el => { D.iconOpen = D.iconOpen === el.dataset.v ? null : el.dataset.v; renderDesign(); },
@@ -632,7 +759,7 @@ async function saveState(){
   const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', itemsFrom:D.rfp.itemsFrom || null, itemsOk:!!D.rfp.itemsOk, docs:(D.rfp.docs || []).map(d => ({ name:d.name, kind:d.kind, items:d.items, cons:d.cons, by:d.by, mode:d.mode, basis:d.basis, pages:d.pages })) } : null,
     grid:D.grid, mood:D.mood, colors:D.colors, roles:{ body:famOf(D.roles.body).label, title:famOf(D.roles.title).label, num:D.roles.num ? famOf(D.roles.num).label : null }, iconMap:D.iconMap,
     mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
-    pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked, refTraits:D.refTraits || null, refUse:D.refUse !== false, growSnap:D.growSnap || null };
+    pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked, refTraits:D.refTraits || null, refUse:D.refUse !== false, growSnap:D.growSnap || null, myDs:D.myDs || null };
   try{ await W.set('design/state', st); }catch(e){ console.warn('design save', e); }
 }
 async function loadState(){
@@ -640,6 +767,7 @@ async function loadState(){
   if(D.ms) return;
   Object.assign(D, { grid:st.grid || null, mood:st.mood || 'navy', colors:st.colors || {}, iconMap:st.iconMap || {}, mapping:st.mapping || null, plan:st.plan || { pat:{}, dec:{} }, style:st.style || null, samples:st.samples || [] });
   if(st.refTraits) D.refTraits = st.refTraits; if(st.refUse === false) D.refUse = false;
+  if(st.myDs){ const c = { ...D.colors }; applyMyDs(st.myDs); D.colors = { ...D.colors, ...Object.fromEntries(Object.entries(st.colors || {}).filter(([, v]) => v)) }; void c; }
   if(st.rfp){ D.rfp = { ...st.rfp, pages:0 }; if(!D.rfp.docs && D.rfp.name !== '직접 입력') D.rfp.docs = [{ name:D.rfp.name, kind:'과업지시서', items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', pages:0 }]; }
   D.restoredGates = st.gates; D.restoredGrowSnap = st.growSnap || null; D.restoredGuide = st.guide; D.restoredPageOpt = st.pageOpt || {}; D.review.acked = st.acked || {};
   D.restored = `${st.msSig.name} · ${new Date(st.at).toLocaleDateString('ko-KR')}`; D.restoredSig = st.msSig; D.restoredRoles = st.roles;
@@ -648,6 +776,7 @@ async function loadState(){
 // 원고를 다시 올리면 저장된 확정 상태를 이어 붙임
 const _takeFiles = takeFiles;
 takeFiles = async function(id, files){
+  if(id === 'ds') return takeDs(files);
   await _takeFiles(id, files);
   if(id === 'ms' && D.ms && D.restoredSig && D.restoredSig.name === D.ms.name && D.restoredSig.pages === D.ms.pages.length && D.restoredGates){
     const rr = D.restoredRoles || {}; const byLabel = l => families().find(f => f.label === l)?.key; if(rr.body && byLabel(rr.body)) D.roles.body = byLabel(rr.body); if(rr.title && byLabel(rr.title)) D.roles.title = byLabel(rr.title);
