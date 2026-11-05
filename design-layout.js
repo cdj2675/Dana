@@ -609,6 +609,8 @@ const COMPACT = { hub:'cards', timeline:'ltable', flow:'flow', cycle:'flow', car
 function composePage(n, opt = {}){
   applyGrowQuality();
   const pg = msPage(n); const tk = opt.tk || tokens(); const style = opt.style || D.style || STYLE_A;
+  // 레퍼런스형: Claude가 설계한 배치가 있으면 그대로(넘치면 아래 기본 배치로)
+  if(style.plan && !opt.pats && typeof planCompose === 'function'){ const r = planCompose(n, tk); if(r) return r; }
   const G = tk.grid; const W = G.w, H = G.h; const x0 = G.ml, x1 = W - G.mr, BW = x1 - x0;
   const vmode = opt.viz ?? D.style?.viz ?? 0;
   const pats0 = opt.pats || (vmode ? vizPatterns(n, vmode) : patternsFor(n));

@@ -397,7 +397,7 @@ function refTraitsHtml(){
       <li class="ok"><span class="qi">·</span><span><b>색 면적</b> ${CN[t.colorUse]} <span class="muted">(${Math.round(t.color * 100)}%) → ${t.colorUse === 'rich' ? '카드·헤드 메시지·표 머리에 옅은 바탕' : '흰 바탕 위주'}</span></span></li>
       ${top.length ? `<li class="ok"><span class="qi">·</span><span><b>자주 쓰는 구성</b> ${esc(top.join(' · '))} <span class="muted">→ 이 유형을 먼저 고름</span></span></li>` : ''}
       ${off.length ? `<li class="ok"><span class="qi">·</span><span><b>거의 안 쓰는 구성</b> ${esc(off.join(' · '))}${off.includes('아이콘') ? ' <span class="muted">→ 아이콘 끔</span>' : ''}</span></li>` : ''}
-      ${t.look ? `<li class="ok"><span class="qi">·</span><span><b>도식 모양</b> ${esc(refLookDesc())} <span class="muted">→ 시안 고르기의 「레퍼런스형」이 이 모양으로 그림</span></span></li>` : ''}
+      ${t.kit || t.look ? `<li class="ok"><span class="qi">·</span><span><b>디자인 언어</b> ${esc(refLookDesc())} <span class="muted">→ 시안 고르기의 「레퍼런스형」이 이 모양으로, 쪽마다 Claude가 배치를 설계해 그림</span></span></li>` : ''}
       ${t.note ? `<li class="ok"><span class="qi">·</span><span class="muted">${esc(t.note)}</span></li>` : ''}</ul></div>`;
 }
 function pickSamples(){
@@ -414,8 +414,13 @@ const SIANS = [
   { k:'C', name:'강조형', viz:1, desc:'진한 머리 띠 · 색 꼬리표 소제목 · 색 헤드 메시지 · 색 머리 카드 · 원형 단계 · 줄무늬 표 · 색 타일 수치. 색 면을 크게 써서 힘 있게' },
 ];
 // 레퍼런스(Claude가 모양까지 읽었을 때)가 있으면 레퍼런스형 시안 R을 맨 앞에 두고 기본으로 고름
-function refLookDesc(){ const L = refOn()?.look; if(!L) return ''; return Object.entries(L).filter(([k, v]) => v && REF_LOOK[k]?.[v]).map(([k, v]) => REF_LOOK[k][v]).join(' · '); }
-function sianList(){ const R = refStyle(); return R ? [{ k:'R', name:'레퍼런스형', viz:'ref', desc:`올린 레퍼런스에 맞춤 — ${refLookDesc()}. 도식 종류·밀도도 레퍼런스를 따름` }, ...SIANS] : SIANS; }
+const KIT_KO = { header:{ band:'진한 머리 띠', panel:'옅은 바탕 머리틀', plain:'흰 머리틀', line:'무채색 머리틀' }, deco:{ sidebar:'왼쪽 세로 띠', corner:'모서리 면', topstripe:'위 강조 띠', bottomstripe:'아래 색 띠', frame:'본문 테두리', none:'' },
+  sub:{ bar:'막대 소제목', num:'번호 소제목', pill:'꼬리표 소제목', underline:'밑줄 소제목', box:'띠 소제목', dot:'점 소제목' }, msg:{ tint:'옅은 핵심 문장 상자', solid:'진한 핵심 문장 상자', underline:'밑줄 핵심 문장', quote:'따옴표 핵심 문장', outline:'테두리 핵심 문장' },
+  flow:{ chevron:'쉐브론 단계', box:'번호 상자 단계', circle:'원형 단계', arrow:'화살표 상자 단계', vertical:'세로 단계' }, kpi:{ tint:'옅은 수치 타일', solid:'색 수치 타일', outline:'테두리 수치', plain:'큰 숫자만', circle:'원형 수치' }, conc:{ label:'꼬리표 요약', tint:'옅은 요약 상자', outline:'테두리 요약 상자', solid:'진한 요약 상자' } };
+function kitDesc(K){ const card = `${{ none:'흰', tint:'옅은 바탕', solid:'색 채운', alt:'두 색 번갈아 채운' }[K.cards.fill]} 카드${K.cards.band ? '(머리 띠)' : ''}${K.cards.border !== 'none' ? `·${{ line:'회색 선', p1:'주색 선', left:'왼쪽 굵은 선', top:'위 굵은 선' }[K.cards.border]}` : ''}${K.cards.number !== 'none' ? '·번호' : ''}`;
+  return [KIT_KO.header[K.header], KIT_KO.deco[K.deco], KIT_KO.sub[K.sub], KIT_KO.msg[K.msg], card, KIT_KO.flow[K.flow], `${K.table.head === 'none' ? '선만 있는' : K.table.head === 'tint' ? '옅은 머리' : '진한 머리'} 표${K.table.zebra ? '(줄무늬)' : ''}${K.table.vlines ? '(세로줄)' : ''}`, KIT_KO.kpi[K.kpi], KIT_KO.conc[K.conc], { single:'한 단', two:'두 단', mixed:'한 단·두 단 섞음' }[K.columns], { tight:'빽빽함', normal:'보통 밀도', airy:'여유' }[K.density]].filter(Boolean).join(' · '); }
+function refLookDesc(){ const K = refOn()?.kit; if(K) return kitDesc(K); const L = refOn()?.look; if(!L) return ''; return Object.entries(L).filter(([k, v]) => v && REF_LOOK[k]?.[v]).map(([k, v]) => REF_LOOK[k][v]).join(' · '); }
+function sianList(){ const R = refStyle(); return R ? [{ k:'R', name:'레퍼런스형', viz:'ref', desc:`Claude가 레퍼런스를 보고 쪽마다 설계 — ${refLookDesc()}` }, ...SIANS] : SIANS; }
 function sianStyle(k){ if(k === 'R'){ const R = refStyle(); if(R) return R; k = 'A'; } const v = SIANS.find(x => x.k === k) || SIANS[0]; return { ...STYLES[v.k], viz:v.viz }; }
 function curSian(){ const L = sianList(); if(!D.sianSet && L[0].k === 'R') return 'R'; return L.some(x => x.k === D.sian) ? D.sian : L[0].k; }
 function P5(){
@@ -452,7 +457,7 @@ async function generateAll(only){
   const ns = only || D.ms.pages.map(p => p.n);
   if(!only) for(const n of ns){ const P = D.pages[n]; if(P){ P.tk = D.guide.tk; } }
   await ensureFonts(D.ms.text); resetMetrics();
-  for(let i=0;i<ns.length;i++){ busy(`쪽을 만드는 중… ${i + 1}/${ns.length}`, (i + 1) / ns.length); await genPage(ns[i]); if(D.step === 6) renderBoard(); await tick(); }
+  for(let i=0;i<ns.length;i++){ busy(`쪽을 만드는 중… ${i + 1}/${ns.length}`, (i + 1) / ns.length); const st0 = D.pages[ns[i]]?.opt.style || D.style; if(st0?.plan) await ensurePlan(ns[i], t => busy(`${t} ${i + 1}/${ns.length}`, (i + .5) / ns.length)); await genPage(ns[i]); if(D.step === 6) renderBoard(); await tick(); }
   D.gen.running = false; D.gen.done = true; busy(null); if(D.step === 6) renderDesign(); saveSoon();
 }
 function P6(){
@@ -624,9 +629,9 @@ async function previewFor(key){
   const p = (async () => { const [kind, a, b, c] = key.split(':'); let sc;
     if(kind === 'mood'){ const tk = tokens({ mood:a, colors:a === D.mood ? D.colors : {} }); sc = composePage(+b, { tk, style:STYLE_A }); }
     else if(kind === 'ab') sc = composePage(+a, { tk:D.guide.tk, style:b === 'A' ? STYLE_A : STYLE_B });
-    else if(kind === 'sx'){ const st = sianStyle(a); sc = composePage(+b, { tk:D.guide.tk, style:st, viz:st.viz }); }
+    else if(kind === 'sx'){ const st = sianStyle(a); if(st.plan) await ensurePlan(+b); sc = composePage(+b, { tk:D.guide.tk, style:st, viz:st.viz }); }
     else if(kind === 'alt'){ const o = altOptions(+a)[+b]; const P = D.pages[+a]; sc = composePage(+a, { tk:P.tk, style:P.opt.style || D.style, pats:o.pats, fontStep:P.opt.fontStep || 0 }); }
-    else if(kind === 'pab'){ const P = D.pages[+a]; sc = composePage(+a, { tk:P.tk, style:b === 'R' ? sianStyle('R') : { ...STYLES[b], viz:(P.opt.style || D.style)?.viz || 0 }, pats:P.opt.pats, fontStep:P.opt.fontStep || 0, level:P.opt.level || 0 }); }
+    else if(kind === 'pab'){ const P = D.pages[+a]; if(b === 'R' && sianStyle('R').plan) await ensurePlan(+a); sc = composePage(+a, { tk:P.tk, style:b === 'R' ? sianStyle('R') : { ...STYLES[b], viz:(P.opt.style || D.style)?.viz || 0 }, pats:P.opt.pats, fontStep:P.opt.fontStep || 0, level:P.opt.level || 0 }); }
     void c; return URL.createObjectURL(await scenePng(sc, kind === 'alt' ? .7 : 100 / 72)); })();
   PV.set(key, p); return p;
 }
@@ -639,7 +644,7 @@ async function fillPreviews(){
 // 디자인 탭 자료 초기화: 올린 자료·고른 스타일·확정을 지우고, 보관 파일·저장된 진행 상태도 지움
 async function resetDesign(){
   D.resetAsk = false;
-  Object.assign(D, { rfp:null, ms:null, assets:{ grids:[], refs:[], fonts:[], icons:[], tokens:null }, refTraits:null, refUse:true, myDs:null, dsOver:null, dsForm:null, fams:[], roles:{ body:'@noto', title:'@noto', num:null },
+  Object.assign(D, { rfp:null, ms:null, assets:{ grids:[], refs:[], fonts:[], icons:[], tokens:null }, refTraits:null, refUse:true, plans:{}, myDs:null, dsOver:null, dsForm:null, fams:[], roles:{ body:'@noto', title:'@noto', num:null },
     grid:null, mood:'navy', colors:{ primary:null, accent:null }, iconMap:{}, msgs:{}, patEdit:false, mapOpen:false,
     restored:null, restoredSig:null, restoredGates:null, restoredGuide:null, restoredPageOpt:null, restoredRoles:null });
   resetProject(); resetMetrics(); PV.clear();
@@ -742,7 +747,7 @@ async function takeFiles(id, files){
       D.ms = ms; if(!same) resetProject(); else { D.pages = {}; D._auto = null; D._an = null; }
       D.restored = null; await ensureFonts(ms.text); Vault.put('design:ms', [files[0]]); }
     else { busy('디자인 자료를 나누는 중…', .3); const notes = await classifyAssets(files); if(notes.length) dmsg('assets', 'info', notes.join(' '));
-      if(D.assets.refs.length){ busy('레퍼런스 성향을 읽는 중…', .8); await analyzeRefs(); D._auto = null; PV.clear(); }
+      if(D.assets.refs.length){ busy('레퍼런스 성향을 읽는 중…', .7); await analyzeRefs(); busy('레퍼런스 디자인 언어를 읽는 중…', .85); await analyzeKit(); D._auto = null; D.plans = {}; PV.clear(); }
       Vault.put('design:assets', files.filter(f => ['pptx','ttf','otf','ttc','json','png','jpg','jpeg','webp','svg','pdf'].includes(extOf(f))), { append:true });
       if(D.assets.tokens) applyTokensFile(D.assets.tokens); resetMetrics(); PV.clear(); await ensureFonts(D.ms?.text); }
   }catch(e){ console.error(e); dmsg(id, 'err', e?.user || `「${files[0].name}」을 읽지 못했습니다. 파일이 손상되지 않았는지 확인해 주세요.`); }
@@ -766,14 +771,14 @@ async function saveState(){
   const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', itemsFrom:D.rfp.itemsFrom || null, itemsOk:!!D.rfp.itemsOk, docs:(D.rfp.docs || []).map(d => ({ name:d.name, kind:d.kind, items:d.items, cons:d.cons, by:d.by, mode:d.mode, basis:d.basis, pages:d.pages })) } : null,
     grid:D.grid, mood:D.mood, colors:D.colors, roles:{ body:famOf(D.roles.body).label, title:famOf(D.roles.title).label, num:D.roles.num ? famOf(D.roles.num).label : null }, iconMap:D.iconMap,
     mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, sian:D.sian || 'A', sianSet:!!D.sianSet, samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
-    pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked, refTraits:D.refTraits || null, refUse:D.refUse !== false, growSnap:D.growSnap || null, myDs:D.myDs || null };
+    pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked, refTraits:D.refTraits || null, refUse:D.refUse !== false, growSnap:D.growSnap || null, myDs:D.myDs || null, plans:Object.fromEntries(Object.entries(D.plans || {}).filter(([, v]) => v.plan).map(([k, v]) => [k, { sig:v.sig, plan:v.plan, note:v.note }])) };
   try{ await W.set('design/state', st); }catch(e){ console.warn('design save', e); }
 }
 async function loadState(){
   if(!W.ok()) return; let st = null; try{ st = await W.get('design/state'); }catch(e){} if(!st || st.v !== 1) return;
   if(D.ms) return;
   Object.assign(D, { grid:st.grid || null, mood:st.mood || 'navy', colors:st.colors || {}, iconMap:st.iconMap || {}, mapping:st.mapping || null, plan:st.plan || { pat:{}, dec:{} }, style:st.style || null, sian:st.sian || 'A', sianSet:!!st.sianSet, samples:st.samples || [] });
-  if(st.refTraits) D.refTraits = st.refTraits; if(st.refUse === false) D.refUse = false;
+  if(st.refTraits) D.refTraits = st.refTraits; if(st.refUse === false) D.refUse = false; if(st.plans) D.plans = st.plans;
   if(st.myDs){ const c = { ...D.colors }; applyMyDs(st.myDs); D.colors = { ...D.colors, ...Object.fromEntries(Object.entries(st.colors || {}).filter(([, v]) => v)) }; void c; }
   if(st.rfp){ D.rfp = { ...st.rfp, pages:0 }; if(!D.rfp.docs && D.rfp.name !== '직접 입력') D.rfp.docs = [{ name:D.rfp.name, kind:'과업지시서', items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', pages:0 }]; }
   D.restoredGates = st.gates; D.restoredGrowSnap = st.growSnap || null; D.restoredGuide = st.guide; D.restoredPageOpt = st.pageOpt || {}; D.review.acked = st.acked || {};

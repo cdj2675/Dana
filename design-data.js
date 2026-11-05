@@ -646,6 +646,7 @@ async function analyzeRefs(){
   const ink = pxs.reduce((a, p) => a + p.ink, 0) / pxs.length, color = pxs.reduce((a, p) => a + p.color, 0) / pxs.length;
   const sig = refs.map(r => r.name).join('|');
   const T = { sig, ink, color, density:ink >= .26 ? 'high' : ink >= .16 ? 'mid' : 'low', colorUse:color >= .07 ? 'rich' : color >= .035 ? 'moderate' : 'minimal', comp:null, look:null, headMsg:null, summaryBox:null, note:'', by:'pixel' };
+  if(D.refTraits?.sig === sig && D.refTraits.kit) T.kit = D.refTraits.kit;
   if(D.refTraits?.sig === sig && D.refTraits.comp && D.refTraits.look) Object.assign(T, { comp:D.refTraits.comp, look:D.refTraits.look, density:D.refTraits.density, headMsg:D.refTraits.headMsg, summaryBox:D.refTraits.summaryBox, note:D.refTraits.note, by:'claude' });
   D.refTraits = T;
   if(T.look || !S.sample || !S.imgLimits) return;
@@ -667,6 +668,11 @@ async function analyzeRefs(){
 }
 // 레퍼런스 모양 → Dana 스타일(시안 R). 없으면 null
 function refStyle(){
+  const K = refOn()?.kit;
+  if(K){ // 쪽 설계가 없거나 넘칠 때 쓰는 가장 가까운 기존 스타일
+    const sub = { bar:'A', num:'B', pill:'C' }[K.sub] || 'A', card = K.cards.fill === 'solid' || K.cards.fill === 'alt' || K.cards.band ? 'C' : K.cards.border === 'line' || K.cards.border === 'p1' ? 'B' : 'A';
+    const flow = { chevron:'A', box:'B', circle:'C', arrow:'B', vertical:'B' }[K.flow] || 'A', table = K.table.head === 'p0' && K.table.zebra ? 'C' : K.table.vlines ? 'B' : 'A', kpi = { solid:'C', outline:'B' }[K.kpi] || 'A';
+    return { sub, card, table, flow, hub:flow === 'B' ? 'B' : 'A', kpi, timeline:K.timeline === 'pills' ? 'B' : 'A', vs:'B', head:K.header, msg:K.msg === 'solid' ? 'C' : 'A', r:K.cards.radius, viz:'ref', ref:true, plan:true }; }
   const L = refOn()?.look; if(!L) return null;
   const m = (v, map, d) => map[v] || d;
   const flow = m(L.flow, { chevron:'A', box:'B', circle:'C' }, 'A');
