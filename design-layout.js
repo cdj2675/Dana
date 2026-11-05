@@ -14,7 +14,9 @@ const STYLE_B = { sub:'B', card:'B', table:'B', flow:'B', hub:'B', kpi:'B', time
 // 시안 C: 색 면을 크게 쓰는 강한 스타일(진한 머리 띠·색 꼬리표 소제목·색 머리 카드·원형 단계·줄무늬 표·색 타일 수치)
 const STYLE_C = { sub:'C', card:'C', table:'C', flow:'C', hub:'A', kpi:'C', timeline:'B', vs:'B', head:'band', msg:'C' };
 const STYLES = { A:STYLE_A, B:STYLE_B, C:STYLE_C };
-const styleKey = st => st?.sub === 'C' ? 'C' : st?.sub === 'B' ? 'B' : 'A';
+const styleKey = st => st?.ref ? 'R' : st?.sub === 'C' ? 'C' : st?.sub === 'B' ? 'B' : 'A';
+// 프로젝트 레퍼런스가 배치를 정하는지(내장 기본값·성장 체질이 아닌)
+const refLed = tk => !!(tk?.ref && !tk.ref.base && tk.ref.by !== 'grow');
 
 function tokens(over){
   const m = MOODS[over?.mood || D.mood] || MOODS.navy; const L = locks();
@@ -242,8 +244,12 @@ function vizPatterns(n, mode){
     if(vi >= 0 && (i === vi || i === vi + 1)){ ids.push(i === vi ? 'vs' : 'vs+'); big = true; return; }
     const its = s.items.filter(x => !x.note);
     let cs = patCandidates(s).filter(c => c.id !== 'list' && c.score >= 40);
+    // 레퍼런스형: 레퍼런스가 자주 쓰는 도식은 크게 올리고, 쓰지 않는 도식은 빼서 레퍼런스의 도식 구성에 가깝게
+    const R = mode === 'ref' ? refOn()?.comp : null;
+    if(R){ const map = { table:'table', ltable:'table', cards:'cards', enum:'cards', flow:'flow', cycle:'flow', kpi:'kpi', timeline:'timeline', hub:'flow' };
+      cs = cs.filter(c => !(map[c.id] && R[map[c.id]] === 0)).map(c => ({ ...c, score:c.score + (map[c.id] && R[map[c.id]] != null ? (R[map[c.id]] - 1.5) * 10 : 0) })).sort((a, b) => b.score - a.score); }
     if(big) cs = cs.filter(c => !PATTERNS[c.id].big);
-    if(!cs.length){ ids.push(its.length >= 2 && its.length <= 6 && !s.tables.length ? 'cards' : patternsFor(n)[i] || 'list'); return; }
+    if(!cs.length){ ids.push(its.length >= 2 && its.length <= 6 && !s.tables.length && !(R && R.cards === 0) ? 'cards' : patternsFor(n)[i] || 'list'); return; }
     const alt = cs.slice(1).find(c => c.id !== 'cards' && PATTERNS[c.id].kind !== 'table' && c.score >= cs[0].score - 25);
     const pick = mode === 2 && alt ? alt : cs[0];
     if(PATTERNS[pick.id].big) big = true; ids.push(pick.id);
@@ -256,9 +262,11 @@ function pageKind(n){ const ids = patternsFor(n); if(ids.some(id => PATTERNS[id]
 // ───────────── 쪽 배치: 블록을 쌓고, 남는 높이를 나눠 본문 끝선까지 채움
 function makeCtx(tk, style, level){
   // level < 0 = 여유 배치(원고가 짧은 쪽): 줄 간격·상자 안 여백·간격을 조금씩 넓힘(상자를 비우며 늘리지는 않음)
-  const fs = tk.size.body; const air = Math.max(0, -level); const lhm = level >= 4 ? 1.38 : level >= 2 ? 1.48 : 1.6 + .07 * air;
-  return { tk, st:style, c:tk.color, fs, lh:fs * lhm, lhm, level, air, tf:tk.size.table, cf:tk.size.caption, r:tk.r,
-    pad:level >= 2 ? 8 : 11 + 2 * air, gap:level >= 1 ? 8 : 10 + 2 * air, useIcons:level < 2 && (!tk.ref || tk.ref.icon) };
+  // 레퍼런스 밀도: 빽빽하면 줄 간격·상자 여백·간격을 줄이고, 여유로우면 늘림
+  const dn = refLed(tk) ? { high:-1, mid:0, low:1 }[tk.ref.dens] || 0 : 0;
+  const fs = tk.size.body; const air = Math.max(0, -level); const lhm = level >= 4 ? 1.38 : level >= 2 ? 1.48 : 1.6 + .07 * air + .08 * dn;
+  return { tk, st:style, c:tk.color, fs, lh:fs * lhm, lhm, level, air, tf:tk.size.table, cf:tk.size.caption, r:style?.r ?? tk.r,
+    pad:level >= 2 ? 8 : 11 + 2 * air + 2 * dn, gap:level >= 1 ? 8 : 10 + 2 * air + 2 * dn, useIcons:level < 2 && (!tk.ref || tk.ref.icon) };
 }
 // 소제목: A = 세로 막대 + 굵은 글자, B = 두 자리 번호(01) + 굵은 글자
 function blkSubtitle(text, C, W, num){
@@ -630,7 +638,7 @@ function evalOf(pg){
 // 머리틀(Dana): 평가 줄(번호 | 평가 항목 이름 ·· 배점) → 절 제목 → 배점 비중 막대(평가 항목마다 한 칸, 폭 = 배점, 이 쪽 항목만 색)
 //  panel = 머리틀 뒤 옅은 바탕 / plain = 흰 바탕 / line = 무채색 막대
 function headerEls(pg, tk, G, x0, BW, W, style){
-  const c = tk.color, els = []; const ev = evalOf(pg); const sec = D.ms.sections.find(s => s.id === pg.sec); const hd = style?.head === 'band' ? 'band' : style?.head === 'plain' && tk.header === 'panel' ? 'plain' : tk.header; const BD = hd === 'band';
+  const c = tk.color, els = []; const ev = evalOf(pg); const sec = D.ms.sections.find(s => s.id === pg.sec); const hd = style?.ref && style.head ? style.head : style?.head === 'band' ? 'band' : style?.head === 'plain' && tk.header === 'panel' ? 'plain' : tk.header; const BD = hd === 'band';
   const label = ev ? ev.label : (sec?.chapterTitle || ''); const hs = tk.size.head; const lh2 = hs * 1.4;
   const title = pg.title || ''; let tsz = tk.size.title; let y = G.mt;
   const wTxt = ev ? (ev.derived ? `중요도 ${ev.tier} · ${Math.round(ev.score)}%` : `배점 ${r1(ev.score)}점 / ${r1(ev.total)}점`) : '';
@@ -678,7 +686,7 @@ function layoutOnce(pg, tk0, style, level, pats, g){
   if(pg.pics.length) secs.push({ title:'사진', blocks:[blkPhotos(pg.pics, C, BW)] });
   const concs = pg.st.concs || (pg.st.conc ? [pg.st.conc] : []);
   if(concs.length) secs.push({ title:'핵심 실행 사항', blocks:[blkConc(concs, C, BW)] });
-  const air = Math.max(0, -level); const dg = tk.ref ? { high:-4, mid:0, low:4 }[tk.ref.dens] || 0 : 0; const inGap = level >= 2 ? 6 : 8 + 3 * air, subGap = 7 + 2 * air, secGap0 = level >= 1 ? 14 : 20 + dg + 6 * air;
+  const air = Math.max(0, -level); const dg = tk.ref ? (refLed(tk) ? { high:-8, mid:0, low:8 } : { high:-4, mid:0, low:4 })[tk.ref.dens] || 0 : 0; const inGap = level >= 2 ? 6 : 8 + 3 * air + (refLed(tk) ? { high:-2, mid:0, low:2 }[tk.ref.dens] || 0 : 0), subGap = 7 + 2 * air, secGap0 = level >= 1 ? 14 : 20 + dg + 6 * air;
   const bodyTop = hd.bodyY; const avail = y1 - bodyTop;
   const gapOf = (s, i) => i < secs.length - 1 ? (s.gapAfter ?? secGap0) : 0;
   const nat = secs.reduce((a, s, i) => a + s.blocks.reduce((b, k) => b + k.h, 0) + s.blocks.slice(0, -1).reduce((b, k) => b + (k.kind === 'sub' ? subGap : inGap), 0) + gapOf(s, i), 0);
