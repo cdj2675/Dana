@@ -10,7 +10,11 @@ const MOODS = {
     primaries:['#2E3338','#3A3F45','#1F2328','#44494F','#2B3440','#3B3B3B'], accents:['#C8372D','#E0782B','#2E7BC4','#1E8A5A','#D9A21B','#7A4FB5'] },
 };
 const STYLE_A = { sub:'A', card:'A', table:'A', flow:'A', hub:'A', kpi:'A', timeline:'A', vs:'A' };
-const STYLE_B = { sub:'B', card:'B', table:'B', flow:'B', hub:'B', kpi:'B', timeline:'B', vs:'B' };
+const STYLE_B = { sub:'B', card:'B', table:'B', flow:'B', hub:'B', kpi:'B', timeline:'B', vs:'B', head:'plain' };
+// 시안 C: 색 면을 크게 쓰는 강한 스타일(진한 머리 띠·색 꼬리표 소제목·색 머리 카드·원형 단계·줄무늬 표·색 타일 수치)
+const STYLE_C = { sub:'C', card:'C', table:'C', flow:'C', hub:'A', kpi:'C', timeline:'B', vs:'B', head:'band', msg:'C' };
+const STYLES = { A:STYLE_A, B:STYLE_B, C:STYLE_C };
+const styleKey = st => st?.sub === 'C' ? 'C' : st?.sub === 'B' ? 'B' : 'A';
 
 function tokens(over){
   const m = MOODS[over?.mood || D.mood] || MOODS.navy; const L = locks();
@@ -228,6 +232,24 @@ function autoPatterns(){
   }
   return out;
 }
+// 인포그래픽 적극 배치: 소제목마다 개조식 목록 대신 도식·카드·표·수치 후보를 고름(쪽마다 큰 도식은 1개)
+//  mode 1 = 가장 알맞은 도식, 2 = 두 번째로 알맞은 도식(점수 차가 크지 않을 때) — 시안마다 다른 모양이 나오도록
+function vizPatterns(n, mode){
+  const pg = msPage(n); if(!pg || pg.divider) return patternsFor(n);
+  const subs = pg.st.subs; const vi = vsPair(subs); const ids = []; let big = false; const ov = D.plan.pat[n] || {};
+  subs.forEach((s, i) => {
+    if(ov[i]){ ids.push(ov[i]); if(PATTERNS[ov[i]]?.big) big = true; return; }
+    if(vi >= 0 && (i === vi || i === vi + 1)){ ids.push(i === vi ? 'vs' : 'vs+'); big = true; return; }
+    const its = s.items.filter(x => !x.note);
+    let cs = patCandidates(s).filter(c => c.id !== 'list' && c.score >= 40);
+    if(big) cs = cs.filter(c => !PATTERNS[c.id].big);
+    if(!cs.length){ ids.push(its.length >= 2 && its.length <= 6 && !s.tables.length ? 'cards' : patternsFor(n)[i] || 'list'); return; }
+    const alt = cs.slice(1).find(c => c.id !== 'cards' && PATTERNS[c.id].kind !== 'table' && c.score >= cs[0].score - 25);
+    const pick = mode === 2 && alt ? alt : cs[0];
+    if(PATTERNS[pick.id].big) big = true; ids.push(pick.id);
+  });
+  return ids;
+}
 function patternsFor(n){ const auto = (D._auto ||= autoPatterns())[n] || []; const ov = D.plan.pat[n] || {}; return auto.map((id, i) => ov[i] || id); }
 function pageKind(n){ const ids = patternsFor(n); if(ids.some(id => PATTERNS[id]?.kind === 'diagram' || id === 'vs')) return 'diagram'; if(ids.some(id => PATTERNS[id]?.kind === 'table')) return 'table'; return 'card'; }
 
@@ -240,7 +262,11 @@ function makeCtx(tk, style, level){
 }
 // 소제목: A = 세로 막대 + 굵은 글자, B = 두 자리 번호(01) + 굵은 글자
 function blkSubtitle(text, C, W, num){
-  const sz = C.tk.size.sub, A = C.st.sub !== 'B' || !num; const ind = A ? 11 : 26;
+  const sz = C.tk.size.sub;
+  if(C.st.sub === 'C'){ // 색 꼬리표: 주색 둥근 띠 안에 흰 글자 + 오른쪽으로 옅은 선
+    const padX = 10, lh = sz * 1.3; const lines = wrap(text, W - padX * 2 - 30, 'title', 700, sz); const tw0 = Math.min(W - 30, maxLineW(lines, 'title', 700, sz) + padX * 2); const h = lines.length * lh + 8;
+    return { kind:'sub', h:h + 1, stretch:0, draw:(x, y) => [E.rect(x, y, tw0, h, { fill:C.c.p1, r:h / 2 > 10 ? 10 : h / 2 }), T(lines, x + padX, y + 4, tw0 - padX * 2, { size:sz, weight:700, role:'title', color:C.c.onP1, lh }), E.line(x + tw0 + 6, y + h / 2, x + W, y + h / 2, { stroke:C.c.line, sw:1 })] }; }
+  const A = C.st.sub !== 'B' || !num; const ind = A ? 11 : 26;
   const lines = wrap(text, W - ind, 'title', 700, sz); const lh = sz * 1.38, th = lines.length * lh;
   return { kind:'sub', h:th + 1, stretch:0, draw:(x, y) => A
     ? [E.rect(x, y + lh * .2, 3.5, lh * .6, { fill:C.c.p1, r:1.5 }), T(lines, x + ind, y, W - ind, { size:sz, weight:700, role:'title', color:C.c.ink, lh })]
@@ -250,6 +276,8 @@ function blkSubtitle(text, C, W, num){
 function blkHeadMsg(texts, C, W){
   const sz = C.tk.size.msg, lh = sz * 1.45; const pad = 12 + 2 * (C.air || 0), padL = 20, padR = 16;
   const lines = texts.flatMap(t => wrap(t, W - padL - padR, 'title', 700, sz)); const h = lines.length * lh + pad * 2;
+  if(C.st.msg === 'C') return { kind:'msg', h, stretch:0, draw:(x, y) => [E.rect(x, y, W, h, { fill:C.c.p1, r:C.r }), E.rect(x + 12, y + pad, 3, h - pad * 2, { fill:C.c.accent }),
+    T(lines, x + padL, y + pad, W - padL - padR, { size:sz, weight:700, role:'title', color:C.c.onP1, lh })] };
   return { kind:'msg', h, stretch:0, draw:(x, y) => [E.rect(x, y, W, h, { fill:C.tk.ref?.rich ? C.c.note : C.c.bg2 }), E.rect(x, y, 4.5, h, { fill:C.c.p1 }),
     T(lines, x + padL, y + pad, W - padL - padR, { size:sz, weight:700, role:'title', color:C.c.p0, lh })] };
 }
@@ -290,11 +318,33 @@ function blkList(items, C, W){
     return out; } };
 }
 function splitTitle(t){ const m = t.match(/^(.{2,22}?)(?<!\d)\s*[:：]\s*(?!\d)(.+)$/); if(m) return { title:m[1].trim(), desc:m[2].trim() }; if(t.length <= 16) return { title:t, desc:'' }; return { title:'', desc:t }; }
+// 카드 C: 주색 머리 띠(번호·아이콘·제목은 흰 글자) + 옅은 바탕 몸통
+function blkCardsC(parts, C, W, cols, cw, gap){
+  const pad = 11 + 2 * (C.air || 0), ts = C.fs + 1, isz = 18; const icons = C.useIcons && parts.filter(p => p.topic).length >= Math.ceil(parts.length / 2);
+  const cards = parts.map((p, i) => { const head = p.title || `${String(i + 1).padStart(2, '0')}`; const hx = pad + (icons ? isz + 7 : 0);
+    const tl = wrap(head, cw - hx - pad, 'title', 700, ts); const hh = Math.max(icons ? isz : 0, tl.length * ts * 1.3) + pad * 1.4;
+    const body = [...(p.title ? (p.desc ? [p.desc] : []) : [p.desc]), ...p.kids.map(k => k.text)].filter(Boolean).map(t => wrap(t, cw - pad * 2 - (p.kids.length ? 12 : 0), 'body', 400, C.fs));
+    const bh = body.length ? pad + body.reduce((a, l) => a + l.length * C.lh + 3, -3) + pad : 0; return { ...p, tl, hh, body, bh, hx }; });
+  const rows = []; for(let i = 0; i < cards.length; i += cols) rows.push(cards.slice(i, i + cols));
+  const rh = rows.map(r => ({ hh:Math.max(...r.map(c => c.hh)), bh:Math.max(...r.map(c => c.bh)) }));
+  const nat = rh.reduce((a, b) => a + b.hh + b.bh, 0) + gap * (rows.length - 1);
+  return { kind:'cards', h:nat, stretch:0, draw:(x, y) => { const out = []; let yy = y;
+    rows.forEach((r, ri) => { const { hh, bh } = rh[ri]; const off = (W - (r.length * cw + (r.length - 1) * gap)) / 2;
+      r.forEach((c, ci) => { const cx = x + off + ci * (cw + gap);
+        out.push(E.rect(cx, yy, cw, hh + bh, { fill:C.c.note, r:C.r })); out.push(E.rect(cx, yy, cw, hh, { fill:ci % 2 ? C.c.p0 : C.c.p1, r:C.r })); if(bh) out.push(E.rect(cx, yy + hh - C.r, cw, C.r, { fill:ci % 2 ? C.c.p0 : C.c.p1 }));
+        if(icons) out.push(E.icon(cx + pad, yy + (hh - isz) / 2, isz, iconFor(c.topic || '목표'), { tone:'dark' }));
+        out.push(T(c.tl, cx + c.hx, yy + (hh - c.tl.length * ts * 1.3) / 2, cw - c.hx - pad, { size:ts, weight:700, role:'title', color:C.c.onP1, lh:ts * 1.3 }));
+        let ty = yy + hh + pad; const k = c.kids.length;
+        c.body.forEach((l, li) => { const kid = k && li >= c.body.length - k; if(kid) out.push(...check(cx + pad, ty + C.lh / 2 - 3.5, C.c.p1)); out.push(T(l, cx + pad + (kid ? 12 : 0), ty, cw - pad * 2 - (kid ? 12 : 0), { size:C.fs, color:C.c.ink, lh:C.lh })); ty += l.length * C.lh + 3; }); });
+      yy += hh + bh + gap; });
+    return out; } };
+}
 const check = (x, y, c) => [E.line(x, y + 3.2, x + 2.6, y + 5.8, { stroke:c, sw:1.4 }), E.line(x + 2.6, y + 5.8, x + 7.4, y, { stroke:c, sw:1.4 })];
 function blkCards(items, C, W){
   const its = items.filter(i => !i.note); const n = its.length; const short = its.every(i => i.text.length <= 24 && !(i.kids || []).length); const cols = n <= 2 ? n : n === 4 ? (short ? 4 : 2) : 3; const gap = 10;
   const cw = (W - gap * (cols - 1)) / cols, pad = 12 + 2 * (C.air || 0), A = C.st.card !== 'B';
   const parts = its.map(i => ({ ...splitTitle(i.text), kids:i.kids || [], topic:topicOf(i.text) }));
+  if(C.st.card === 'C') return blkCardsC(parts, C, W, cols, cw, gap);
   const icons = C.useIcons && parts.filter(p => p.topic).length >= Math.ceil(n / 2); const isz = 24; const ts = C.fs + 1;
   const cards = parts.map(p => {
     const tx = pad + (icons ? isz + 9 : 0); const tW = cw - tx - pad;
@@ -326,6 +376,7 @@ function blkCards(items, C, W){
     return out; } };
 }
 function blkFlow(steps, C, W, cycle){
+  if(C.st.flow === 'C' && !cycle) return blkFlowC(steps, C, W);
   const n = steps.length; const nr = n <= 5 ? 1 : n <= 10 ? 2 : 3; const per = Math.ceil(n / nr); const A = C.st.flow !== 'B';
   const ag = A ? 5 : 16; const bw = (W - ag * (per - 1)) / per; const pad = 8; const inset = A ? 14 : pad;
   const cs = C.tk.size.caption, clh = cs * 1.35;
@@ -371,6 +422,23 @@ function blkFlow(steps, C, W, cycle){
       out.push(E.poly([[x0 - 4.5, fb + 8], [x0, fb + 2], [x0 + 4.5, fb + 8]], { fill:C.c.accent, shape:'triangle', box:[x0 - 4.5, fb + 2, 9, 6] })); }
     return out; } };
 }
+// 흐름 C: 큰 번호 원을 굵은 선으로 잇고, 원 아래에 단계 이름(굵게)과 설명
+function blkFlowC(steps, C, W){
+  const n = steps.length, nr = n <= 5 ? 1 : 2, per = Math.ceil(n / nr), sw = W / per, D0 = 34, cs = C.tk.size.caption;
+  const items = steps.map((s, i) => { const sp = splitTitle(s.text); const two = !!(sp.title && sp.desc); return { no:s.label && /\d/.test(s.label) ? s.label.replace(/[^\d]/g, '') : String(i + 1), lab:s.label && !/^\d+$/.test(s.label) ? s.label : '', tl:wrap(two ? sp.title : s.text, sw - 10, 'title', 700, C.fs), dl:two ? wrap(sp.desc, sw - 10, 'body', 400, C.fs) : [] }; });
+  const tH = Math.max(...items.map(i => i.tl.length)) * C.lh, dH = Math.max(0, ...items.map(i => i.dl.length)) * C.lh, lab = items.some(i => i.lab) ? cs * 1.35 : 0;
+  const rowH = D0 + 8 + lab + tH + (dH ? 4 + dH : 0); const nat = nr * rowH + (nr - 1) * 14;
+  return { kind:'flow', h:nat, stretch:0, draw:(x, y) => { const out = [];
+    for(let r = 0; r < nr; r++){ const row = items.slice(r * per, r * per + per); const yy = y + r * (rowH + 14); const off = (W - row.length * sw) / 2;
+      if(row.length > 1) out.push(E.rect(x + off + sw / 2, yy + D0 / 2 - 1.5, sw * (row.length - 1), 3, { fill:C.c.p3 }));
+      row.forEach((it, i) => { const cx = x + off + sw * i + sw / 2, idx = r * per + i, last = idx === n - 1;
+        out.push(E.ell(cx - D0 / 2, yy, D0, D0, { fill:last ? C.c.accent : C.c.p1 })); out.push(E.ell(cx - D0 / 2 + 3, yy + 3, D0 - 6, D0 - 6, { stroke:'#FFFFFF', sw:1 }));
+        out.push(T([it.no.padStart(2, '0')], cx - D0 / 2, yy + (D0 - C.fs * 1.3) / 2, D0, { size:C.fs + 1, weight:700, role:'num', color:'#FFFFFF', lh:C.fs * 1.3, align:'center', skip:true }));
+        let ty = yy + D0 + 8; if(lab){ if(it.lab) out.push(T([it.lab], cx - sw / 2 + 5, ty, sw - 10, { size:cs, weight:700, color:C.c.p1, lh:cs * 1.35, align:'center' })); ty += lab; }
+        out.push(T(it.tl, cx - sw / 2 + 5, ty, sw - 10, { size:C.fs, weight:700, role:'title', color:C.c.ink, lh:C.lh, align:'center' })); ty += tH + 4;
+        if(it.dl.length) out.push(T(it.dl, cx - sw / 2 + 5, ty, sw - 10, { size:C.fs, color:C.c.ink2, lh:C.lh, align:'center' })); }); }
+    return out; } };
+}
 function blkHub(head, items, C, W){
   const its = items.filter(i => !i.note); const n = its.length; const A = C.st.hub !== 'B';
   const Dm = clamp(W * .26, 104, 140); const gx = 24; const bw = (W - Dm - gx * 2) / 2; const pad = 9;
@@ -410,10 +478,11 @@ function blkKpi(k, C, W){
     const out = []; const add = ex / rows;
     tiles.forEach((t, i) => { const r = Math.floor(i / cols), c = i % cols; const rowCnt = Math.min(cols, n - r * cols); const off = (W - (rowCnt * cw + (rowCnt - 1) * gap)) / 2;
       const tx = x + off + c * (cw + gap), ty = y + r * (th + add + gap); const h = th + add;
-      if(A) out.push(E.rect(tx, ty, cw, h, { fill:C.tk.ref?.rich ? C.c.note : C.c.bg2, r:C.r })); else { out.push(E.rect(tx, ty, cw, h, { fill:C.c.bg, stroke:C.c.line, sw:.75, r:C.r })); out.push(E.rect(tx, ty, cw, 2.5, { fill:C.c.p1 })); }
+      const KC = C.st.kpi === 'C';
+      if(KC) out.push(E.rect(tx, ty, cw, h, { fill:i % 2 ? C.c.p0 : C.c.p1, r:C.r })); else if(A) out.push(E.rect(tx, ty, cw, h, { fill:C.tk.ref?.rich ? C.c.note : C.c.bg2, r:C.r })); else { out.push(E.rect(tx, ty, cw, h, { fill:C.c.bg, stroke:C.c.line, sw:.75, r:C.r })); out.push(E.rect(tx, ty, cw, 2.5, { fill:C.c.p1 })); }
       const vw = tw(t.value, 'num', 700, ks), uw = tw(t.unit, 'body', 500, C.fs); const sx = tx + (cw - vw - uw - 3) / 2; const vy = ty + pad + add / 2;
-      out.push(T([t.value], sx, vy, vw + uw + 6, { size:ks, weight:700, role:'num', color:A ? C.c.p1 : C.c.accent, lh:lh2, suffix:{ text:t.unit, size:C.fs, weight:500, role:'body', color:C.c.ink2, gap:3 } }));
-      out.push(T(t.ll, tx + pad, vy + lh2 + 4, cw - pad * 2, { size:C.fs, color:C.c.ink, lh:C.lh, align:'center' })); });
+      out.push(T([t.value], sx, vy, vw + uw + 6, { size:ks, weight:700, role:'num', color:KC ? '#FFFFFF' : A ? C.c.p1 : C.c.accent, lh:lh2, suffix:{ text:t.unit, size:C.fs, weight:500, role:'body', color:KC ? C.c.p2 : C.c.ink2, gap:3 } }));
+      out.push(T(t.ll, tx + pad, vy + lh2 + 4, cw - pad * 2, { size:C.fs, color:KC ? '#FFFFFF' : C.c.ink, lh:C.lh, align:'center' })); });
     return out; } };
 }
 function tableModel(rows, C, W, labelMode){
@@ -435,6 +504,10 @@ function tableModel(rows, C, W, labelMode){
 function blkTable(rows, C, W, labelMode){
   const M = tableModel(rows, C, W, labelMode); const A = C.st.table !== 'B';
   const nat = M.rh.reduce((a, b) => a + b, 0);
+  if(C.st.table === 'C') return { kind:'table', h:nat, stretch:0, draw:(x, y) => { // 진한 머리 행 + 줄무늬 + 라벨 열 주색 글자
+    const cells = M.cells.map((r, ri) => r.map((c, ci) => { const isHead = M.head && ri === 0, isLab = M.labCol && ci === 0 && !isHead; const body = M.head ? ri - 1 : ri;
+      return { lines:c.lines, text:c.text, weight:isHead || isLab ? 700 : c.wt, color:isHead ? '#FFFFFF' : isLab ? C.c.p0 : C.c.ink, fill:isHead ? C.c.p0 : body % 2 ? C.c.note : '#FFFFFF', align:isHead || c.num ? 'center' : 'left' }; }));
+    return [{ t:'table', x, y, colW:M.cw, rowH:M.rh, cells, size:M.fs, lh:M.lh, px:M.px, line:C.c.note, edge:C.c.p0, vlines:false, headRule:false }]; } };
   return { kind:'table', h:nat, stretch:0, draw:(x, y) => {
     const cells = M.cells.map((r, ri) => r.map((c, ci) => {
       const isHead = M.head && ri === 0, isLab = M.labCol && ci === 0 && !isHead;
@@ -529,7 +602,8 @@ function composePage(n, opt = {}){
   applyGrowQuality();
   const pg = msPage(n); const tk = opt.tk || tokens(); const style = opt.style || D.style || STYLE_A;
   const G = tk.grid; const W = G.w, H = G.h; const x0 = G.ml, x1 = W - G.mr, BW = x1 - x0;
-  const pats0 = opt.pats || patternsFor(n);
+  const vmode = opt.viz ?? D.style?.viz ?? 0;
+  const pats0 = opt.pats || (vmode ? vizPatterns(n, vmode) : patternsFor(n));
   let best = null;
   for(let level = opt.level || 0; level <= 4; level++){
     const pats = pats0.map(p => level >= 3 ? (COMPACT[p] && p !== 'flow' && p !== 'kpi' ? COMPACT[p] : p) : p);
@@ -540,6 +614,8 @@ function composePage(n, opt = {}){
   if(!best.overflow && best.level === 0 && best.m.use < QUALITY.useTarget && !opt.level){
     for(const lv of [-1, -2]){ const r = layoutOnce(pg, tk, style, lv, pats0, { x0, x1, BW, W, H, G, fontStep:opt.fontStep || 0 }); if(r.overflow || r.m.use > .97) break; best = r; if(r.m.use >= QUALITY.useTarget) break; }
   }
+  // 인포그래픽을 적극 쓴 배치가 넘치면 기본 배치로
+  if(best.overflow && !opt.pats && vmode) return composePage(n, { ...opt, viz:0 });
   best.quality = pageQuality(best, pg);
   return best;
 }
@@ -553,35 +629,37 @@ function evalOf(pg){
 }
 // 머리틀(Dana): 평가 줄(번호 | 평가 항목 이름 ·· 배점) → 절 제목 → 배점 비중 막대(평가 항목마다 한 칸, 폭 = 배점, 이 쪽 항목만 색)
 //  panel = 머리틀 뒤 옅은 바탕 / plain = 흰 바탕 / line = 무채색 막대
-function headerEls(pg, tk, G, x0, BW, W){
-  const c = tk.color, els = []; const ev = evalOf(pg); const sec = D.ms.sections.find(s => s.id === pg.sec); const hd = tk.header;
+function headerEls(pg, tk, G, x0, BW, W, style){
+  const c = tk.color, els = []; const ev = evalOf(pg); const sec = D.ms.sections.find(s => s.id === pg.sec); const hd = style?.head === 'band' ? 'band' : style?.head === 'plain' && tk.header === 'panel' ? 'plain' : tk.header; const BD = hd === 'band';
   const label = ev ? ev.label : (sec?.chapterTitle || ''); const hs = tk.size.head; const lh2 = hs * 1.4;
   const title = pg.title || ''; let tsz = tk.size.title; let y = G.mt;
   const wTxt = ev ? (ev.derived ? `중요도 ${ev.tier} · ${Math.round(ev.score)}%` : `배점 ${r1(ev.score)}점 / ${r1(ev.total)}점`) : '';
   const back = []; els.push({ placeholder:true });
   if(label || ev){ let lx = x0; const ww = wTxt ? tw(wTxt, 'body', 500, hs) + 4 : 0;
-    if(ev){ const cw = tw(ev.code, 'num', 700, hs + 1); els.push(T([ev.code], x0, y, cw + 2, { size:hs + 1, weight:700, role:'num', color:c.p1, lh:lh2 })); lx += cw + 9;
-      els.push(E.line(lx, y + lh2 * .2, lx, y + lh2 * .8, { stroke:c.line, sw:1 })); lx += 9; }
-    els.push(T([label], lx, y, x0 + BW - lx - ww - 8, { size:hs, weight:500, color:c.ink2, lh:lh2 }));
-    if(wTxt) els.push(T([wTxt], x0 + BW - ww, y, ww, { size:hs, weight:500, color:c.ink2, lh:lh2, align:'right' }));
+    const sub2 = BD ? c.p2 : c.ink2;
+    if(ev){ const cw = tw(ev.code, 'num', 700, hs + 1); els.push(T([ev.code], x0, y, cw + 2, { size:hs + 1, weight:700, role:'num', color:BD ? c.accL : c.p1, lh:lh2 })); lx += cw + 9;
+      els.push(E.line(lx, y + lh2 * .2, lx, y + lh2 * .8, { stroke:BD ? c.p3 : c.line, sw:1 })); lx += 9; }
+    els.push(T([label], lx, y, x0 + BW - lx - ww - 8, { size:hs, weight:500, color:sub2, lh:lh2 }));
+    if(wTxt) els.push(T([wTxt], x0 + BW - ww, y, ww, { size:hs, weight:500, color:sub2, lh:lh2, align:'right' }));
     y += lh2 + 5; }
   let tl = wrap(title, BW, 'title', 700, tsz); if(tl.length > 2){ tsz = tk.size.sub + 1; tl = wrap(title, BW, 'title', 700, tsz); }
-  const tlh = tsz * 1.3; els.push(T(tl, x0, y, BW, { size:tsz, weight:700, role:'title', color:hd === 'line' ? c.ink : c.p0, lh:tlh })); y += tl.length * tlh + 8;
+  const tlh = tsz * 1.3; els.push(T(tl, x0, y, BW, { size:tsz, weight:700, role:'title', color:BD ? '#FFFFFF' : hd === 'line' ? c.ink : c.p0, lh:tlh })); y += tl.length * tlh + 8;
   // 배점 비중 막대
   const bh = 4; const items = D.rfp?.items || [];
   if(ev && items.length > 1){ const gap = 2, tot = items.reduce((a, i) => a + (+i.score || 0), 0) || 1; const free = BW - gap * (items.length - 1); let bx = x0;
-    items.forEach(it => { const w = Math.max(3, free * (+it.score || 0) / tot); const on = (ev.id === it.id); els.push(E.rect(bx, y, w, bh, { fill:on ? (hd === 'line' ? c.ink : c.p1) : (hd === 'line' ? mix(c.ink, '#FFFFFF', .8) : c.line) })); bx += w + gap; }); }
-  else { els.push(E.rect(x0, y + 1.5, BW, 1, { fill:c.line })); els.push(E.rect(x0, y, 36, bh, { fill:hd === 'line' ? c.ink : c.p1 })); }
+    items.forEach(it => { const w = Math.max(3, free * (+it.score || 0) / tot); const on = (ev.id === it.id); els.push(E.rect(bx, y, w, bh, { fill:on ? (BD ? c.accent : hd === 'line' ? c.ink : c.p1) : (BD ? mix(c.p0, '#FFFFFF', .35) : hd === 'line' ? mix(c.ink, '#FFFFFF', .8) : c.line) })); bx += w + gap; }); }
+  else { els.push(E.rect(x0, y + 1.5, BW, 1, { fill:BD ? mix(c.p0, '#FFFFFF', .35) : c.line })); els.push(E.rect(x0, y, 36, bh, { fill:BD ? c.accent : hd === 'line' ? c.ink : c.p1 })); }
   y += bh;
   if(hd === 'panel') back.push(E.rect(-G.bleed, -G.bleed, W + G.bleed * 2, y + 12 + G.bleed, { fill:c.bg2 }));
+  if(BD) back.push(E.rect(-G.bleed, -G.bleed, W + G.bleed * 2, y + 14 + G.bleed, { fill:c.p0 }));
   els.splice(0, 1, ...back);
-  return { els, bodyY:Math.max(G.bodyTop, y + (hd === 'panel' ? 26 : 18)) };
+  return { els, bodyY:Math.max(G.bodyTop, y + (hd === 'panel' || BD ? 26 : 18)) };
 }
 function layoutOnce(pg, tk0, style, level, pats, g){
   const tk = g.fontStep ? { ...tk0, size:{ ...tk0.size, body:stepSize(tk0, g.fontStep) } } : tk0;
   const C = makeCtx(tk, style, level); const { x0, BW, W, H, G } = g; const c = tk.color;
   const groups = []; const issues = [];
-  const hd = headerEls(pg, tk, G, x0, BW, W); groups.push({ id:'part-head', title:'머리틀', skip:true, els:hd.els });
+  const hd = headerEls(pg, tk, G, x0, BW, W, style); groups.push({ id:'part-head', title:'머리틀', skip:true, els:hd.els });
   // 바닥: 쪽 번호·출처
   const L = tk.locks; const showNo = L.pageNumber !== '넣지 않음';
   const yEnd = H - G.mb; let y1 = yEnd;

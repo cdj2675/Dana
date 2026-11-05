@@ -470,6 +470,17 @@ details.dfold>summary .muted{font-size:12.5px;font-weight:400}
 .swpick button[aria-pressed=true]{border-color:var(--ink);box-shadow:inset 0 0 0 2px var(--panel)}
 .swpick .lbl{font-size:12px;color:var(--ink2);min-width:72px}
 .sysgrid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.sians{display:grid;gap:16px}
+.sian{border:2px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:10px;background:var(--panel)}
+.sian.on{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.sianh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sianh b{font-size:15px}
+.sianh .muted{font-size:12.5px;flex:1 1 280px}
+.sianpages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.sianpages .pv{padding:0;border:1px solid var(--line2);border-radius:6px;background:var(--sunk);aspect-ratio:210/297;overflow:hidden;display:grid;place-items:center;cursor:pointer}
+.sianpages .pv img{width:100%;height:100%;object-fit:contain;display:block}
+@media (max-width:620px){.sianpages{grid-template-columns:minmax(0,1fr)}}
+.abpair.ab3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .dsbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .dsbar .lbl{font-size:12.5px;color:var(--ink2);font-weight:600;margin-right:2px}
 .moodchip{display:inline-flex;align-items:center;gap:8px;border-radius:99px;padding:5px 12px 5px 8px}
@@ -652,7 +663,7 @@ label.drop.gdrop{min-height:96px;padding:12px}
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="2" width="17" height="22" rx="3" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.6"/><path d="M7 8h9M7 12h9M7 16h5" stroke="var(--brand)" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="19.5" r="4.6" fill="var(--panel)" stroke="var(--brand)" stroke-width="1.8"/><path d="m22.8 22.8 3 3" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.15.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
+      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.16.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
     </div>
     <div class="topr"><div class="growwrap"><button type="button" class="growbtn" id="growBtn" aria-haspopup="dialog" aria-describedby="growTip"></button><div class="growtip" id="growTip" role="tooltip"></div></div><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
     <button class="ghost" type="button" id="goHelp">검사 기준 보기</button></div>
@@ -860,7 +871,7 @@ if(window.pdfjsLib){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnj
 
 // ═════════════════════════════ 상태
 // 버전: 고칠 때마다 이 값과 README 「변경 기록」을 함께 올립니다.
-const VERSION = '1.15.0';
+const VERSION = '1.16.0';
 const S = {
   data:null, gov:null, govOverride:null,
   source:null, batches:[], design:{}, mode:'page', firstMap:1,
