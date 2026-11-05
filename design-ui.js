@@ -402,28 +402,26 @@ function refTraitsHtml(){
 function pickSamples(){
   const A = D._an = analysis(); const order = [...A.secs].sort((a, b) => b.density - a.density || a.pages[0] - b.pages[0]);
   const pages = order.flatMap(s => s.pages).filter(n => !msPage(n)?.divider); const out = []; const used = new Set();
-  for(const sig of ['diagram', 'table', 'card', 'number', 'compare', 'text']){ if(out.length >= 4) break; const n = pages.find(p => !used.has(p) && sampleSig(p) === sig); if(n){ used.add(n); out.push({ n, kind:sig }); } }
+  for(const sig of ['diagram', 'table', 'card', 'number', 'compare', 'text']){ if(out.length >= 3) break; const n = pages.find(p => !used.has(p) && sampleSig(p) === sig); if(n){ used.add(n); out.push({ n, kind:sig }); } }
   for(const n of pages){ if(out.length >= 3) break; if(!used.has(n)){ used.add(n); out.push({ n, kind:sampleSig(n) }); } }
-  return out.map(s => ({ ...s, pick:'A' }));
+  return out.slice(0, 3).map(s => ({ ...s, pick:'A' }));
 }
+// 시안 3가지: 같은 샘플 3쪽을 서로 다른 스타일·인포그래픽 배치로 그림
+const SIANS = [
+  { k:'A', name:'정돈형', viz:1, desc:'옅은 바탕 머리틀 · 막대 소제목 · 윗선 카드 · 쉐브론 단계 · 주색 머리 행 표. 차분하고 읽기 쉬운 공공 제안서 스타일' },
+  { k:'B', name:'구조형', viz:2, desc:'흰 머리틀 · 번호(01) 소제목 · 테두리 카드 · 번호 원 단계 상자 · 세로줄 표. 번호와 선으로 구조를 또렷하게, 맞는 다른 도식이 있으면 바꿔 씀' },
+  { k:'C', name:'강조형', viz:1, desc:'진한 머리 띠 · 색 꼬리표 소제목 · 색 헤드 메시지 · 색 머리 카드 · 원형 단계 · 줄무늬 표 · 색 타일 수치. 색 면을 크게 써서 힘 있게' },
+];
 function P5(){
   if(!D.samples.length) D.samples = pickSamples();
-  const g3 = D.gates.g3;
-  return `<section class="dpanel">${phead('시안 고르기', `형식이 서로 다른 ${D.samples.length}쪽(${[...new Set(D.samples.map(x => KIND_NAME[x.kind]))].join('·')})을 두 가지 스타일로 그렸습니다. 쪽마다 마음에 드는 쪽을 누르세요. 권장안이 미리 골라져 있어 그대로 확정해도 됩니다.`)}
-    <div class="ab">${D.samples.map((s, i) => { const pg = msPage(s.n); return `<div class="abrow"><div class="abh"><b>샘플 ${i + 1} · ${s.n}쪽</b><span class="tag t-pdf">${KIND_NAME[s.kind]}</span><span class="muted" style="font-size:12.5px">${esc(pg.title)}</span></div>
-      <div class="abpair">${['A', 'B'].map(v => `<button type="button" data-act="pick" data-i="${i}" data-v="${v}" aria-pressed="${s.pick === v}"><div class="pv"><img alt="${s.n}쪽 ${v}안" data-pv="ab:${s.n}:${v}"></div><div class="cap"><b>${v}안</b>${v === 'A' ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${v === 'A' ? styleDesc(STYLE_A, s.kind) : styleDesc(STYLE_B, s.kind)}</span></div></button>`).join('')}</div></div>`; }).join('')}</div>
-    ${foot(g3 ? `스타일 확정됨 · 디자인 가이드 v${esc(D.guide.version)}` : '확정하면 고른 스타일로 모든 쪽을 만들고 4단계 전체 생성으로 넘어갑니다.', g3 ? `<button type="button" class="primary big" data-act="go" data-k="6">다음: 전체 생성 →</button>` : gateBtn(3, '이 스타일로 확정'))}</section>`;
+  const g3 = D.gates.g3; const cur = D.sian || 'A';
+  return `<section class="dpanel">${phead('시안 고르기', `같은 ${D.samples.length}쪽(${D.samples.map(s => s.n + '쪽').join('·')})을 세 가지 스타일로, 인포그래픽을 적극 써서 그렸습니다. 마음에 드는 시안 하나를 고르세요. 고른 시안의 스타일과 도식 배치가 모든 쪽에 적용됩니다.`)}
+    <div class="sians">${SIANS.map(v => `<div class="sian ${cur === v.k ? 'on' : ''}"><div class="sianh"><b>시안 ${v.k} · ${v.name}</b>${v.k === 'A' ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${v.desc}</span><button type="button" class="${cur === v.k ? 'primary' : ''}" data-act="sian" data-v="${v.k}" aria-pressed="${cur === v.k}">${cur === v.k ? '✓ 고름' : '이 시안 고르기'}</button></div>
+      <div class="sianpages">${D.samples.map(s => `<button type="button" class="pv" data-act="sian" data-v="${v.k}" aria-label="시안 ${v.k} ${s.n}쪽"><img alt="시안 ${v.k}로 그린 ${s.n}쪽" data-pv="sx:${v.k}:${s.n}"></button>`).join('')}</div></div>`).join('')}</div>
+    ${foot(g3 ? `스타일 확정됨 · 시안 ${esc(cur)} · 디자인 가이드 v${esc(D.guide.version)}` : '확정하면 고른 시안으로 모든 쪽을 만들고 4단계 전체 생성으로 넘어갑니다.', g3 ? `<button type="button" class="primary big" data-act="go" data-k="6">다음: 전체 생성 →</button>` : gateBtn(3, `시안 ${cur}로 확정`))}</section>`;
 }
-function styleDesc(st, kind){ const A = st === STYLE_A; const sub = A ? '막대 소제목' : '번호(01) 소제목';
-  return kind === 'table' ? `${sub} · ${A ? '흰 머리 행·가로줄 표' : '색 머리 행·세로줄 표'}` : kind === 'diagram' ? `${sub} · ${A ? '쉐브론 단계' : '번호 원 + 상자 단계'}` : `${sub} · ${A ? '테두리 카드' : '색 채운 카드'}`; }
-function styleFromSamples(){
-  const st = { ...STYLE_A }; const vote = { A:0, B:0 };
-  for(const s of D.samples){ vote[s.pick]++; const B = s.pick === 'B' ? 'B' : 'A';
-    if(s.kind === 'table') st.table = B; if(s.kind === 'card'){ st.card = B; st.kpi = B; } if(s.kind === 'diagram'){ st.flow = B; st.hub = B; st.timeline = B; st.vs = B; } }
-  st.sub = vote.B > vote.A ? 'B' : 'A';
-  if(!D.samples.some(s => s.kind === 'card')) st.card = st.kpi = st.sub; if(!D.samples.some(s => s.kind === 'table')) st.table = st.sub; if(!D.samples.some(s => s.kind === 'diagram')) st.flow = st.hub = st.timeline = st.vs = st.sub;
-  return st;
-}
+function styleDesc(st){ const v = SIANS.find(x => x.k === styleKey(st)); return v ? v.name : ''; }
+function styleFromSamples(){ const v = SIANS.find(x => x.k === (D.sian || 'A')) || SIANS[0]; return { ...STYLES[v.k], viz:v.viz }; }
 
 // ── 6 전체 생성(디자인 보드)
 async function genPage(n, opt){
@@ -485,9 +483,9 @@ function detailHtml(n){
     <div class="presets"><div><h3 style="margin:0">${n}쪽 · ${esc(pg.title)}</h3><p class="note">${sc.level > 0 ? `줄이기 ${sc.level}단계 적용 · ` : sc.level < 0 ? `여유 배치 ${-sc.level}단계 · ` : ''}본문 ${r1(fsNow)}pt${P.hist.length ? ` · 고친 횟수 ${P.hist.length}` : ''}</p></div>
       ${sc.quality && !pg.divider ? `<ul class="qlist">${sc.quality.items.map(i => `<li class="${i.ok ? 'ok' : i.must ? 'no' : 'soft'}"><span class="qi" aria-hidden="true">${i.ok ? '✓' : '!'}</span><span><b>${esc(i.name)}</b>${i.val ? ` <span class="muted">${esc(i.val)}</span>` : ''}${!i.ok && i.fix ? `<br><span class="muted">${esc(i.fix)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}
       ${sc.issues.length ? `<ul class="issues">${sc.issues.map(i => `<li><span class="tag ${i.lv === 'err' ? 'c-err' : 'c-warn'}">${i.lv === 'err' ? '오류' : '확인'}</span><span>${esc(i.msg)}</span></li>`).join('')}</ul>` : '<p class="note">자동 검사 통과: 겹침·넘침·최소 글자·하단 여백 이상 없음</p>'}
-      ${pg.divider ? '' : `<div class="pr"><b>쪽 전체</b><div class="row"><button type="button" data-act="pre" data-v="fill">여백 채우기</button><button type="button" data-act="pre" data-v="shrink">상자 줄이기</button><button type="button" data-act="pre" data-v="alt">다른 유형으로</button><button type="button" data-act="pre" data-v="ab">시안 2개 보기</button></div></div>
+      ${pg.divider ? '' : `<div class="pr"><b>쪽 전체</b><div class="row"><button type="button" data-act="pre" data-v="fill">여백 채우기</button><button type="button" data-act="pre" data-v="shrink">상자 줄이기</button><button type="button" data-act="pre" data-v="alt">다른 유형으로</button><button type="button" data-act="pre" data-v="ab">시안 3개 보기</button></div></div>
       ${D.altFor === n ? `<div class="strat" id="dStrat">${altOptions(n).map((o, i) => `<button type="button" data-act="altPick" data-i="${i}"><img alt="" data-pv="alt:${n}:${i}"><b>${esc(o.name)}</b>${o.rec ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${esc(o.why)}</span></button>`).join('')}</div>` : ''}
-      ${D.abFor === n ? `<div class="abpair">${['A', 'B'].map(v => `<button type="button" data-act="abPick" data-v="${v}"><div class="pv"><img alt="${v}안" data-pv="pab:${n}:${v}"></div><div class="cap"><b>${v === ((P.opt.style || D.style || STYLE_A).sub) ? '지금' : '다른'} 시안</b></div></button>`).join('')}</div>` : ''}
+      ${D.abFor === n ? `<div class="abpair ab3">${['A', 'B', 'C'].map(v => `<button type="button" data-act="abPick" data-v="${v}"><div class="pv"><img alt="시안 ${v}" data-pv="pab:${n}:${v}"></div><div class="cap"><b>시안 ${v} · ${SIANS.find(x => x.k === v).name}</b>${v === styleKey(P.opt.style || D.style) ? ' <span class="muted">지금</span>' : ''}</div></button>`).join('')}</div>` : ''}
       <div class="pr"><b>섹션별 유형</b>${subs.map((s, i) => { if(ids[i] === 'vs+' || !ids[i]) return ''; const cs = ids[i] === 'vs' ? [{ id:'vs' }, ...patCandidates(s)] : patCandidates(s); return `<div class="row"><span style="font-size:12.5px;flex:1 1 140px;min-width:0">${esc(s.head || '내용 ' + (i + 1))}</span><select data-ppat="${n}:${i}">${cs.map(c => `<option value="${c.id}" ${c.id === ids[i] ? 'selected' : ''}>${PATTERNS[c.id]?.name || c.id}</option>`).join('')}</select></div>`; }).join('')}</div>
       <div class="pr"><b>글자</b><div class="row"><button type="button" data-act="pre" data-v="up">키우기</button><button type="button" data-act="pre" data-v="down" ${fsNow <= minB ? 'aria-disabled="true"' : ''}>줄이기</button></div>${D.lockMsg?.n === n ? `<p class="note" style="color:var(--warn)">${esc(D.lockMsg.t)}</p>` : ''}</div>`}
       <div class="pr"><b>되돌리기 · 전체 적용</b><div class="row"><button type="button" data-act="pre" data-v="undo" ${P.hist.length ? '' : 'disabled'}>되돌리기</button><button type="button" data-act="pre" data-v="all" ${P.hist.length ? '' : 'disabled'} title="이 쪽의 글자 크기·줄이기 설정을 다른 쪽에도 적용">같은 수정을 전체 적용</button></div></div>
@@ -619,8 +617,9 @@ async function previewFor(key){
   const p = (async () => { const [kind, a, b, c] = key.split(':'); let sc;
     if(kind === 'mood'){ const tk = tokens({ mood:a, colors:a === D.mood ? D.colors : {} }); sc = composePage(+b, { tk, style:STYLE_A }); }
     else if(kind === 'ab') sc = composePage(+a, { tk:D.guide.tk, style:b === 'A' ? STYLE_A : STYLE_B });
+    else if(kind === 'sx'){ const v = SIANS.find(x => x.k === a); sc = composePage(+b, { tk:D.guide.tk, style:{ ...STYLES[a], viz:v.viz }, viz:v.viz }); }
     else if(kind === 'alt'){ const o = altOptions(+a)[+b]; const P = D.pages[+a]; sc = composePage(+a, { tk:P.tk, style:P.opt.style || D.style, pats:o.pats, fontStep:P.opt.fontStep || 0 }); }
-    else if(kind === 'pab'){ const P = D.pages[+a]; sc = composePage(+a, { tk:P.tk, style:b === 'A' ? STYLE_A : STYLE_B, pats:P.opt.pats, fontStep:P.opt.fontStep || 0, level:P.opt.level || 0 }); }
+    else if(kind === 'pab'){ const P = D.pages[+a]; sc = composePage(+a, { tk:P.tk, style:{ ...STYLES[b], viz:(P.opt.style || D.style)?.viz || 0 }, pats:P.opt.pats, fontStep:P.opt.fontStep || 0, level:P.opt.level || 0 }); }
     void c; return URL.createObjectURL(await scenePng(sc, kind === 'alt' ? .7 : 100 / 72)); })();
   PV.set(key, p); return p;
 }
@@ -697,10 +696,11 @@ const ACT = {
   unmap:el => { D.mapping[el.dataset.i] = D.mapping[el.dataset.i].filter(x => x !== el.dataset.s); D._an = null; D._auto = null; renderDesign(); saveSoon(); },
   xlsPlan:async () => { await dl(`${WT()}매핑_보완제안_${today()}.xlsx`, planXlsx(false)); },
   pick:el => { D.samples[+el.dataset.i].pick = el.dataset.v; renderDesign(); },
+  sian:el => { D.sian = el.dataset.v; renderDesign(); saveSoon(); },
   sel:el => { const n = +el.dataset.n; D.sel = D.sel === n ? null : n; D.altFor = D.abFor = null; D.lockMsg = null; renderDesign(); if(D.sel) $('#dDetail')?.scrollIntoView({ behavior:'smooth', block:'nearest' }); },
   pre:el => preset(el.dataset.v),
   altPick:async el => { const o = altOptions(D.sel)[+el.dataset.i]; D.altFor = null; await genPage(D.sel, { pats:o.pats }); renderDesign(); saveSoon(); },
-  abPick:async el => { const st = el.dataset.v === 'A' ? STYLE_A : STYLE_B; D.abFor = null; await genPage(D.sel, { style:st }); renderDesign(); saveSoon(); },
+  abPick:async el => { const st = { ...STYLES[el.dataset.v], viz:(D.style?.viz) || 0 }; D.abFor = null; await genPage(D.sel, { style:st }); renderDesign(); saveSoon(); },
   regenAll:() => { for(const n in D.pages) D.pages[n].tk = D.guide.tk; generateAll(); },
   one:async el => { const P = D.pages[D.sel]; const v = el.dataset.v; const nm = `${D.ms.name.replace(/\.[^.]+$/, '')}_p${String(D.sel).padStart(2, '0')}`;
     if(v === 'png') await dl(nm + '.png', await scenePng(P.sc, 200 / 72)); else if(v === 'svg') await dl(nm + '.svg', P.svg ||= await sceneSvg(P.sc)); else { busy('파워포인트 파일을 만드는 중…', .5); await dl(nm + '.pptx', await scenesPptx([P.sc])); busy(null); } },
@@ -716,10 +716,10 @@ const ACT = {
 async function confirmGate(g){
   if(g === 1){ await ensureFonts(D.ms.text); resetMetrics(); D.gates.g1 = true; D.growSnap = Grow.snap(); D.guide = { version:'1.0', date:today(), tk:tokens(), sig:guideSig(), history:[{ v:'1.0', date:today(), note:`처음 확정 · ${MOODS[D.mood].name}` }] }; go(4); }
   else if(g === 2){ D.gates.g2 = true; D.samples = pickSamples(); go(5); }
-  else if(g === 3){ D.style = styleFromSamples(); D.gates.g3 = true; const [a, b] = D.guide.version.split('.').map(Number); D.guide.version = `${a}.${b + 1}`; D.guide.history.push({ v:D.guide.version, date:today(), note:`스타일 확정 · 샘플 ${D.samples.map(s => s.n + '쪽 ' + s.pick).join(', ')}` }); D.pages = {}; go(6); }
+  else if(g === 3){ D.style = styleFromSamples(); D.gates.g3 = true; const [a, b] = D.guide.version.split('.').map(Number); D.guide.version = `${a}.${b + 1}`; D.guide.history.push({ v:D.guide.version, date:today(), note:`스타일 확정 · 시안 ${D.sian || 'A'}(${SIANS.find(x => x.k === (D.sian || 'A')).name}) · 샘플 ${D.samples.map(s => s.n + '쪽').join(', ')}` }); D.pages = {}; go(6); }
   saveSoon();
 }
-function resetProject(){ D.growSnap = null; D.gates = { g1:false, g2:false, g3:false }; D.mapping = null; D.plan = { pat:{}, dec:{} }; D.samples = []; D.style = null; D.pages = {}; D.guide = null; D.review = { ran:false, acked:{}, issues:[] }; D._an = null; D._auto = null; D.sel = null; PV.clear(); D.step = 1; }
+function resetProject(){ D.growSnap = null; D.gates = { g1:false, g2:false, g3:false }; D.mapping = null; D.plan = { pat:{}, dec:{} }; D.samples = []; D.style = null; D.sian = 'A'; D.pages = {}; D.guide = null; D.review = { ran:false, acked:{}, issues:[] }; D._an = null; D._auto = null; D.sel = null; PV.clear(); D.step = 1; }
 async function takeFiles(id, files){
   dmsg(id);
   try{
@@ -758,14 +758,14 @@ async function saveState(){
   if(!W.ok() || !D.ms) return;
   const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', itemsFrom:D.rfp.itemsFrom || null, itemsOk:!!D.rfp.itemsOk, docs:(D.rfp.docs || []).map(d => ({ name:d.name, kind:d.kind, items:d.items, cons:d.cons, by:d.by, mode:d.mode, basis:d.basis, pages:d.pages })) } : null,
     grid:D.grid, mood:D.mood, colors:D.colors, roles:{ body:famOf(D.roles.body).label, title:famOf(D.roles.title).label, num:D.roles.num ? famOf(D.roles.num).label : null }, iconMap:D.iconMap,
-    mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
+    mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, sian:D.sian || 'A', samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
     pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked, refTraits:D.refTraits || null, refUse:D.refUse !== false, growSnap:D.growSnap || null, myDs:D.myDs || null };
   try{ await W.set('design/state', st); }catch(e){ console.warn('design save', e); }
 }
 async function loadState(){
   if(!W.ok()) return; let st = null; try{ st = await W.get('design/state'); }catch(e){} if(!st || st.v !== 1) return;
   if(D.ms) return;
-  Object.assign(D, { grid:st.grid || null, mood:st.mood || 'navy', colors:st.colors || {}, iconMap:st.iconMap || {}, mapping:st.mapping || null, plan:st.plan || { pat:{}, dec:{} }, style:st.style || null, samples:st.samples || [] });
+  Object.assign(D, { grid:st.grid || null, mood:st.mood || 'navy', colors:st.colors || {}, iconMap:st.iconMap || {}, mapping:st.mapping || null, plan:st.plan || { pat:{}, dec:{} }, style:st.style || null, sian:st.sian || 'A', samples:st.samples || [] });
   if(st.refTraits) D.refTraits = st.refTraits; if(st.refUse === false) D.refUse = false;
   if(st.myDs){ const c = { ...D.colors }; applyMyDs(st.myDs); D.colors = { ...D.colors, ...Object.fromEntries(Object.entries(st.colors || {}).filter(([, v]) => v)) }; void c; }
   if(st.rfp){ D.rfp = { ...st.rfp, pages:0 }; if(!D.rfp.docs && D.rfp.name !== '직접 입력') D.rfp.docs = [{ name:D.rfp.name, kind:'과업지시서', items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', pages:0 }]; }
