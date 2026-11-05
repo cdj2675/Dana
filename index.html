@@ -593,6 +593,7 @@ label.drop.gdrop{min-height:96px;padding:12px}
 .gtable th{font-weight:600;color:var(--muted);font-size:12px}
 .gtable .n{text-align:right;font-variant-numeric:tabular-nums}
 .gtable tr.gray td{color:var(--muted)}
+.gtable td.glearn{white-space:normal;min-width:150px;color:var(--ink2)}
 @media (max-width:560px){.growmini{display:none}.growbtn{padding:3px}}
 .gtag{font-size:11px;border:1px solid var(--warn);color:var(--warn);border-radius:5px;padding:0 5px}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
@@ -603,7 +604,7 @@ label.drop.gdrop{min-height:96px;padding:12px}
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="2" width="17" height="22" rx="3" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.6"/><path d="M7 8h9M7 12h9M7 16h5" stroke="var(--brand)" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="19.5" r="4.6" fill="var(--panel)" stroke="var(--brand)" stroke-width="1.8"/><path d="m22.8 22.8 3 3" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.12.2</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
+      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.13.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
     </div>
     <div class="topr"><div class="growwrap"><button type="button" class="growbtn" id="growBtn" aria-haspopup="dialog" aria-describedby="growTip"></button><div class="growtip" id="growTip" role="tooltip"></div></div><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
     <button class="ghost" type="button" id="goHelp">검사 기준 보기</button></div>
@@ -811,7 +812,7 @@ if(window.pdfjsLib){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnj
 
 // ═════════════════════════════ 상태
 // 버전: 고칠 때마다 이 값과 README 「변경 기록」을 함께 올립니다.
-const VERSION = '1.12.2';
+const VERSION = '1.13.0';
 const S = {
   data:null, gov:null, govOverride:null,
   source:null, batches:[], design:{}, mode:'page', firstMap:1,
