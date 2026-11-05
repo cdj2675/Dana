@@ -26,7 +26,7 @@ function tokens(over){
     lh:1.6, r:4, color:c, fonts:{ ...D.roles }, locks:L,
     // 레퍼런스 성향(켜져 있을 때만): 밀도 → 묶음 간격, 색 면적 → 카드·헤드 메시지·라벨 열 바탕, 아이콘 사용
     // 레퍼런스가 없으면 내장 기본값(제출본 측정: 색 면적 9~12% → 옅은 바탕을 기본으로)
-    ref:(t => t ? { dens:t.density, rich:t.colorUse !== 'minimal', icon:t.comp ? t.comp.icon > 0 : true } : { dens:'mid', rich:true, icon:true, base:true })(over?.ref === undefined ? refOn() : over.ref) };
+    ref:(t => t ? { dens:t.density, rich:t.colorUse !== 'minimal', icon:t.comp ? t.comp.icon >= .5 : true, by:t.by || 'ref' } : { dens:'mid', rich:true, icon:true, base:true })(over?.ref === undefined ? (refOn() || growRefTraits()) : over.ref) };
 }
 function allowedSizes(tk){ return [...new Set(Object.values(tk.size))].sort((a,b) => a-b); }
 function paletteOf2(tk){ return [...new Set(Object.values(tk.color))]; }
@@ -188,7 +188,9 @@ function patCandidates(sub){
   if(its.length) c.push(['list', sentence || avg > 60 || its.length === 1 || its.length > 6 ? 75 : 40]);
   if(!c.length) c.push(['list', 10]);
   // 레퍼런스가 자주 쓰는 구성은 점수를 올리고, 거의 안 쓰는 구성은 내림(0~3 → -9~+9)
-  const R = refOn()?.comp; if(R){ const map = { table:'table', ltable:'table', cards:'cards', enum:'cards', flow:'flow', cycle:'flow', kpi:'kpi', timeline:'timeline' }; for(const x of c){ const k = map[x[0]]; if(k && R[k] != null) x[1] += (R[k] - 1.5) * 6; } }
+  // 프로젝트 레퍼런스가 없으면 먹이로 자란 공용 체질의 도식 점수를 씀. 표현력이 높게 자랐으면 개조식 목록보다 도식 쪽으로
+  const R = refOn()?.comp || growRefTraits()?.comp; const V = growRefTraits()?.viz || 0; if(V) for(const x of c) if(x[0] !== 'list') x[1] += V;
+  if(R){ const map = { table:'table', ltable:'table', cards:'cards', enum:'cards', flow:'flow', cycle:'flow', kpi:'kpi', timeline:'timeline' }; for(const x of c){ const k = map[x[0]]; if(k && R[k] != null) x[1] += (R[k] - 1.5) * 6; } }
   const seen = new Set(); return c.sort((a,b) => b[1]-a[1]).filter(([id]) => !seen.has(id) && seen.add(id)).map(([id, score]) => ({ id, score }));
 }
 const VS_L = /^(기존|현행|현황|종전|AS-?IS|문제|과거)/i, VS_R = /^(개선|향후|변경|TO-?BE|대책|제안|미래|해결)/i;
@@ -510,9 +512,9 @@ const QUALITY_ITEMS = [
   { id:'eval', name:'평가 항목 표시', must:true, when:() => !!(D.rfp?.items.length), ok:m => m.evalOk, fix:'배점 연결에서 이 쪽의 절을 평가 항목에 이으세요.' },
   { id:'msg', name:'헤드 메시지', must:true, ok:m => m.msg, fix:'원고 첫 줄(소제목 앞)에 이 쪽의 핵심 주장을 한 문장으로 넣으세요.' },
   { id:'struct', name:'표·도식·사진 1개 이상', must:true, ok:m => m.struct, fix:'원고에 단계(1단계…), 「이름 : 설명」, 표, 사진 중 하나를 넣으면 도식이 됩니다.' },
-  { id:'use', name:'본문 채움 70% 이상', must:true, ok:m => m.use >= QUALITY.useTarget - .005, val:m => `${Math.round(m.use * 100)}%`, fix:'원고 분량을 늘리거나 사진·표를 더하세요(여유 배치까지 적용한 값).' },
+  { id:'use', get name(){ return `본문 채움 ${Math.round(QUALITY.useTarget * 100)}% 이상`; }, must:true, ok:m => m.use >= QUALITY.useTarget - .005, val:m => `${Math.round(m.use * 100)}%`, fix:'원고 분량을 늘리거나 사진·표를 더하세요(여유 배치까지 적용한 값).' },
   { id:'steps', name:'글자 크기 4단계 이하', must:false, ok:m => m.steps <= QUALITY.steps, val:m => `${m.steps}단계` },
-  { id:'chars', name:'원고 400자 이상', must:false, ok:m => m.chars >= QUALITY.chars, val:m => `${m.chars}자`, fix:'제출본은 쪽당 600자 안팎입니다. 원고 보강 후보입니다.' },
+  { id:'chars', get name(){ return `원고 ${QUALITY.chars}자 이상`; }, must:false, ok:m => m.chars >= QUALITY.chars, val:m => `${m.chars}자`, fix:'제출본은 쪽당 600자 안팎입니다. 원고 보강 후보입니다.' },
 ];
 function pageQuality(sc, pg){
   if(pg?.divider) return { items:[], pass:true, score:1 };
@@ -523,6 +525,7 @@ function pageQuality(sc, pg){
 // 넘칠 때 단계별로 줄이기: 0 기본 → 1 간격 → 2 카드 아이콘·여백 → 3 큰 도식을 카드·표로 → 4 줄 간격
 const COMPACT = { hub:'cards', timeline:'ltable', flow:'flow', cycle:'flow', cards:'list', kpi:'kpi' };
 function composePage(n, opt = {}){
+  applyGrowQuality();
   const pg = msPage(n); const tk = opt.tk || tokens(); const style = opt.style || D.style || STYLE_A;
   const G = tk.grid; const W = G.w, H = G.h; const x0 = G.ml, x1 = W - G.mr, BW = x1 - x0;
   const pats0 = opt.pats || patternsFor(n);

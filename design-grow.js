@@ -260,18 +260,83 @@ function growLearned(d){
   return [top.length ? `도식 ${top.join('·')}` : '', d.polishAvg != null ? `세련됨 ${d.polishAvg}` : '', d.expressAvg != null ? `표현력 ${d.expressAvg}` : ''].filter(Boolean).join(' · ');
 }
 
+// ───────────── 공용 체질: 레벨업 때 포함한 먹이로 다시 계산한 Dana 기본값
+// Lv1 = 내장 기본값(아래). 한 번에 남은 차이의 30%까지만, 안전 범위 안에서만 움직이고, 한 문서 비중은 30%를 넘지 않음
+const GROW_BASE_C = { fill:.70, chars:400, ink:.24, color:.09, comp:null, viz:0, polish:null, express:null };
+const GROW_COMP = { flow:['flow', 'cycle'], cards:['cards'], table:['table', 'matrix', 'compare'], kpi:['kpi', 'chart'], timeline:['timeline'], photo:['photo'], icon:['icon'] };
+const GROW_COMP_LABEL = { flow:'단계·순환', cards:'카드', table:'표·비교', kpi:'큰 숫자·그래프', timeline:'일정', photo:'사진', icon:'아이콘' };
+function growWeights(fs){
+  let w = fs.map(f => Math.max(1, f.xp || 1)); if(fs.length < 4) return fs.map(() => 1);
+  for(let k = 0; k < 6; k++){ const t = w.reduce((a, b) => a + b, 0); w = w.map(x => Math.min(x, .3 * t)); }
+  return w;
+}
+function wmean(v, w){ let a = 0, b = 0; v.forEach((x, i) => { if(x != null && isFinite(x)){ a += x * w[i]; b += w[i]; } }); return b ? a / b : null; }
+function wpct(v, w, p){ const z = v.map((x, i) => [x, w[i]]).filter(([x]) => x != null && isFinite(x)).sort((a, b) => a[0] - b[0]); if(!z.length) return null; const t = z.reduce((a, [, ww]) => a + ww, 0); let acc = 0; for(const [x, ww] of z){ acc += ww; if(acc / t >= p) return x; } return z[z.length - 1][0]; }
+function growCompute(feeds, prev){
+  const P = { ...GROW_BASE_C, ...(prev || {}) }, out = { ...P };
+  const step = (from, to, lo, hi) => from + .3 * (Math.max(lo, Math.min(hi, to)) - from);
+  const docs = feeds.filter(f => f.nut && (f.kind || f.meta?.kind) !== 'design'), w = growWeights(docs);
+  if(docs.length){
+    const fp = wpct(docs.map(f => f.nut.fill), w, .1); if(fp != null) out.fill = r3(step(P.fill, fp * .95, .60, .85));
+    const ch = wpct(docs.map(f => f.nut.chars), w, .1); if(ch) out.chars = Math.round(step(P.chars, ch * .9, 250, 600));
+    const ink = wmean(docs.map(f => f.nut.ink), w); if(ink != null) out.ink = r3(step(P.ink, ink, .15, .40));
+    const col = wmean(docs.map(f => f.nut.color), w); if(col != null) out.color = r3(step(P.color, col, .03, .15));
+  }
+  const ds = feeds.filter(f => f.nut?.design?.pages), wd = growWeights(ds);
+  if(ds.length){
+    const pc = P.comp || Object.fromEntries(Object.keys(GROW_COMP).map(k => [k, 1.5])); out.comp = {};
+    for(const [k, keys] of Object.entries(GROW_COMP)){
+      const rate = wmean(ds.map(f => { const d = f.nut.design; let c = keys.reduce((a, x) => a + (d.diagrams?.[x] || 0), 0); if(k === 'icon') c += d.tech?.['아이콘카드'] || 0; return Math.min(1, c / d.pages); }), wd);
+      out.comp[k] = gr1(step(pc[k], Math.min(3, rate * 4), 0, 3));
+    }
+    const E = wmean(ds.map(f => f.nut.design.expressAvg), wd); if(E != null) out.viz = gr1(step(P.viz, (E - 3) * 4, -6, 6));
+    const avgOf = grp => Object.fromEntries(Object.keys(grp === 'polish' ? GROW_POLISH : GROW_EXPRESS).map(k => [k, gr1(wmean(ds.map(f => f.nut.design[grp]?.[k] ?? null), wd))]));
+    out.polish = avgOf('polish'); out.express = avgOf('express');
+  }
+  out.n = feeds.length; return out;
+}
+// 지금 디자인에 쓰는 체질: 디자인 가이드를 확정한 프로젝트는 그때 레벨로 고정(진행 중인 작업 보호)
+function growActiveConst(){
+  if(window.__growPreview !== undefined) return window.__growPreview;
+  if(typeof D !== 'undefined' && D.gates?.g1 && D.growSnap) return D.growSnap.c || null;
+  return Grow.state?.const || null;
+}
+function growRefTraits(){
+  const c = growActiveConst(); if(!c) return null;
+  return { density:c.ink >= .26 ? 'high' : c.ink >= .16 ? 'mid' : 'low', colorUse:c.color >= .07 ? 'rich' : c.color >= .035 ? 'moderate' : 'minimal', comp:c.comp || null, viz:c.viz || 0, by:'grow' };
+}
+function applyGrowQuality(){ const c = growActiveConst(); QUALITY.useTarget = c?.fill ?? GROW_BASE_C.fill; QUALITY.chars = c?.chars ?? GROW_BASE_C.chars; }
+const GROW_DENS = { high:'촘촘', mid:'보통', low:'여유' }, GROW_COLU = { rich:'넉넉', moderate:'보통', minimal:'적게' };
+function growDiffRows(a, b){
+  const A = { ...GROW_BASE_C, ...(a || {}) }, B = { ...GROW_BASE_C, ...(b || {}) }, pc = v => `${Math.round(v * 100)}%`;
+  const dens = c => c.ink >= .26 ? 'high' : c.ink >= .16 ? 'mid' : 'low', colu = c => c.color >= .07 ? 'rich' : c.color >= .035 ? 'moderate' : 'minimal';
+  const rows = [
+    ['본문 채움 기준', pc(A.fill), pc(B.fill)],
+    ['쪽당 글자 기준', `${A.chars}자`, `${B.chars}자`],
+    ['본문 밀도', `${pc(A.ink)} · ${GROW_DENS[dens(A)]}`, `${pc(B.ink)} · ${GROW_DENS[dens(B)]}`],
+    ['색 면적', `${pc(A.color)} · ${GROW_COLU[colu(A)]}`, `${pc(B.color)} · ${GROW_COLU[colu(B)]}`],
+  ];
+  for(const k of Object.keys(GROW_COMP)){ const x = A.comp?.[k], y = B.comp?.[k]; if(x == null && y == null) continue; const sc = v => v == null ? '기본' : `${v > 1.5 ? '+' : ''}${Math.round((v - 1.5) * 6)}점`; rows.push([`도식 점수 · ${GROW_COMP_LABEL[k]}`, sc(x), sc(y)]); }
+  if(A.viz || B.viz) rows.push(['인포그래픽 적극성', `${A.viz > 0 ? '+' : ''}${A.viz}`, `${B.viz > 0 ? '+' : ''}${B.viz}`]);
+  const m = o => { const v = Object.values(o || {}).filter(x => x != null); return v.length ? gr1(v.reduce((p, q) => p + q, 0) / v.length) : null; };
+  if(B.polish) rows.push(['세련됨 평균(참고)', m(A.polish) ?? '—', m(B.polish)]);
+  if(B.express) rows.push(['표현력 평균(참고)', m(A.express) ?? '—', m(B.express)]);
+  return rows.map(r => ({ k:r[0], a:String(r[1]), b:String(r[2]), ch:String(r[1]) !== String(r[2]) }));
+}
+
 // ───────────── 상태
 const Grow = {
   db:null, uid:null, canWrite:null, feeds:[], state:{ level:1, carry:0 }, inited:false, loaded:false,
-  staged:[], log:[], busy:false, prog:null, meta:{ result:'unknown', score:'', max:'', field:'', kind:'auto' }, unsubs:[],
+  staged:[], log:[], busy:false, prog:null, rv:null, rbAsk:false, isOwner:false, meta:{ result:'unknown', score:'', max:'', field:'', kind:'auto' }, unsubs:[],
   async init(){
     if(this.inited) return; this.inited = true;
     this.db = S.db || null; this.uid = S.uid || null;
     try{ const c = S.user?.can?.('data.write'); this.canWrite = c instanceof Promise ? await c : c; }catch(e){ this.canWrite = null; }
+    try{ const o = S.user?.isOwner?.(); this.isOwner = !!(o instanceof Promise ? await o : o); }catch(e){ this.isOwner = false; }
     if(this.db){
       try{
         this.unsubs.push(this.db.collection('grow_feeds').onSnapshot(snap => { this.feeds = snap.docs.map(d => ({ id:d.id, ...d.data() })); this.loaded = true; this.render(); }, () => {}));
-        this.unsubs.push(this.db.doc('grow_meta/state').onSnapshot(snap => { const v = snap.exists ? snap.data() : null; this.state = { level:1, carry:0, ...(v || {}) }; this.render(); }, () => {}));
+        this.unsubs.push(this.db.doc('grow_meta/state').onSnapshot(snap => { const v = snap.exists ? snap.data() : null; const was = this.state.level; this.state = { level:1, carry:0, ...(v || {}) }; this.render(); if(was !== this.state.level) window.Design?.onGrow?.(); }, () => {}));
       }catch(e){ console.warn('grow subscribe', e); }
       setTimeout(() => { if(!this.loaded){ this.loaded = true; this.render(); } }, 10000);
     } else this.loaded = true;
@@ -282,7 +347,107 @@ const Grow = {
     try{ const s = await this.db.collection('grow_feeds').get(); this.feeds = s.docs.map(d => ({ id:d.id, ...d.data() })); }catch(e){}
     this.render();
   },
-  pending(){ return this.feeds.filter(f => f.status === 'pending'); },
+  pending(){ const lk = this.locked(); return this.feeds.filter(f => f.status === 'pending' && !lk.has(f.id)); },
+  // ───────────── 2단계: 레벨업 검토·확정·되돌리기(승인자만)
+  approver(){ if(!this.uid) return false; return this.state.approver ? this.state.approver === this.uid : !!this.isOwner; },
+  locked(){ const s = new Set(); for(const e of this.state.levels || []) [...(e.inc || []), ...(e.out || [])].forEach(id => s.add(id)); return s; },
+  snap(){ return { lv:this.state.level || 1, c:this.state.const || null }; },
+  rvCalc(){
+    const pend = this.pending(), sel = pend.filter(f => this.rv.sel[f.id]);
+    const lv = this.state.level || 1, need = growNeed(lv), xp = (this.state.carry || 0) + sel.reduce((a, f) => a + (f.xp || 0), 0);
+    return { pend, sel, lv, need, xp, ok:xp >= need && sel.length >= 3 };
+  },
+  reviewHtml(){
+    const s = this.sum(), ap = this.approver(), L = this.state.levels || [];
+    let h = `<section class="gsec" id="growReview"><h3>레벨업 검토${ap ? '' : ' <small class="muted">승인자만</small>'}</h3>`;
+    if(!ap) h += `<p class="gnote">${s.ready ? '레벨업 대기 중이에요. ' : ''}승인자(이 Dana의 소유자)가 이번 레벨의 먹이를 검토하고 레벨업을 확정해요.</p>`;
+    else if(!this.pending().length) h += `<p class="gnote muted">검토할 먹이가 없어요.</p>`;
+    else if(!this.rv) h += `<p class="gnote">${s.ready ? '레벨업 대기 중이에요. 이번 레벨의 먹이를 검토하고 확정하세요.' : `아직 레벨업 대기가 아니에요(경험치 ${s.xp}/${s.need}, 먹이 ${s.feeds}/3). 먹이를 미리 살펴볼 수는 있어요.`}</p><div class="gact"><button type="button" class="${s.ready ? 'primary' : ''}" id="growRvOpen">레벨업 검토 열기</button></div>`;
+    else {
+      const R = this.rvCalc(), next = growCompute(R.sel, this.state.const || null), rows = growDiffRows(this.state.const || null, next);
+      h += `<p class="gnote">먹이마다 포함할지 고르세요. 「확인 필요」 먹이는 체크하면 통과, 그대로 두면 제외예요. 제외한 먹이는 경험치에서 빠지고 다시 쓰지 않아요.</p>
+      <div class="gtable"><table><thead><tr><th>포함</th><th>날짜</th><th>준 사람</th><th>종류</th><th>배운 것</th><th class="n">쪽</th><th class="n">경험치</th></tr></thead><tbody>${R.pend.sort((a, b) => (b.at || 0) - (a.at || 0)).map(f => { const d = new Date(f.at || 0);
+        return `<tr${f.gray && !this.rv.sel[f.id] ? ' class="gray"' : ''}><td><input type="checkbox" data-rvsel="${f.id}"${this.rv.sel[f.id] ? ' checked' : ''} aria-label="이 먹이 포함"></td><td>${d.getMonth() + 1}/${d.getDate()}</td><td>${f.by && f.by === this.uid ? '나' : '팀원'}</td><td>${GROW_KIND[f.kind || f.meta?.kind] || '제안서'}${f.meta?.field ? ` <small class="muted">${esc(f.meta.field)}</small>` : ''}</td><td class="glearn">${esc(growLearned(f.nut?.design)) || '<span class="muted">숫자만</span>'}${f.gray ? `<div class="gwhy">확인 필요: ${esc((f.why || []).join(', '))}</div>` : ''}</td><td class="n">${f.bodyPages}쪽</td><td class="n">${f.xp}</td></tr>`; }).join('')}</tbody></table></div>
+      <div class="gconds"><span class="gcond ${R.xp >= R.need ? 'ok' : ''}">${R.xp >= R.need ? '✓' : '·'} 경험치 ${R.xp}/${R.need}</span><span class="gcond ${R.sel.length >= 3 ? 'ok' : ''}">${R.sel.length >= 3 ? '✓' : '·'} 먹이 ${R.sel.length}/3</span></div>
+      <h4 class="gh4">레벨업하면 이렇게 바뀌어요 <small class="muted">Lv${R.lv} → Lv${R.lv + 1}</small></h4>
+      <div class="gtable"><table class="gdiff"><thead><tr><th>기본값</th><th>지금</th><th>레벨업 후</th></tr></thead><tbody>${rows.map(r => `<tr${r.ch ? ' class="ch"' : ''}><td>${esc(r.k)}</td><td>${esc(r.a)}</td><td>${r.ch ? '<b>' + esc(r.b) + '</b>' : esc(r.b)}</td></tr>`).join('')}</tbody></table></div>
+      <p class="gnote muted">한 번에 남은 차이의 30%까지만, 안전 범위(본문 채움 60~85%, 쪽당 글자 250~600자, 밀도 15~40%, 색 면적 3~15%, 도식 점수 ±9) 안에서 움직여요. 세련됨·표현력은 지금은 참고값이에요.</p>`;
+      const pv = this.rv.pv;
+      if(typeof D !== 'undefined' && D.ms){
+        h += `<div class="gact"><button type="button" id="growRvPv"${pv === 'busy' ? ' disabled' : ''}>${pv === 'busy' ? '그리는 중…' : pv ? '전후 비교 다시 그리기' : '올린 원고로 전후 비교 보기'}</button><span class="gnote muted">디자인 탭에 올린 원고 앞 2쪽을 지금 레벨과 다음 레벨로 그려요.</span></div>`;
+        if(pv && pv !== 'busy') h += `<div class="gpv"><div><div class="gpvh">지금 Lv${R.lv}</div>${pv.a.map(u => `<img src="${u}" alt="지금 레벨로 그린 쪽">`).join('')}</div><div><div class="gpvh">레벨업 후 Lv${R.lv + 1}</div>${pv.b.map(u => `<img src="${u}" alt="다음 레벨로 그린 쪽">`).join('')}</div></div>`;
+      } else h += `<p class="gnote muted">디자인 탭에 원고를 올려 두면 같은 원고를 두 레벨로 그린 전후 비교도 볼 수 있어요.</p>`;
+      h += `<div class="gact"><button type="button" class="primary" id="growRvGo"${R.ok && !this.rv.busy ? '' : ' disabled'}>${this.rv.busy ? '확정하는 중…' : `Lv${R.lv + 1}로 레벨업 확정`}</button><button type="button" class="ghost" id="growRvClose">검토 닫기</button>${R.ok ? '' : '<span class="gnote muted">경험치와 먹이 3개를 채워야 확정할 수 있어요.</span>'}</div>`;
+      if(this.rv.msg) h += `<p class="msg ${this.rv.msg.lv}">${esc(this.rv.msg.t)}</p>`;
+    }
+    if(L.length){
+      h += `<h4 class="gh4">레벨 기록</h4><ul class="ghist">${[...L].reverse().map((e, i) => { const d = new Date(e.at || 0);
+        return `<li><b>Lv${e.lv}</b><span>${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} · 먹이 ${(e.inc || []).length}개 포함${(e.out || []).length ? ` · ${(e.out || []).length}개 제외` : ''} · ${e.by === this.uid ? '내가' : '승인자가'} 확정</span>${ap && i === 0 ? `<button type="button" class="linkbtn" id="growRb">Lv${e.lv - 1}로 되돌리기</button>` : ''}</li>`; }).join('')}</ul>`;
+      if(this.rbAsk) h += `<div class="msg warn">Lv${this.state.level}을 되돌리면 체질이 Lv${this.state.level - 1} 값으로 돌아가고, 그 레벨에 넣었던 먹이는 다시 검토 대기로 돌아가요. <button type="button" class="danger" id="growRbYes">되돌리기</button> <button type="button" class="ghost" id="growRbNo">취소</button></div>`;
+    }
+    return h + `</section>`;
+  },
+  bindReview(P){
+    P.querySelector('#growRvOpen')?.addEventListener('click', () => { this.rv = { sel:Object.fromEntries(this.pending().map(f => [f.id, !f.gray])), pv:null }; this.renderPanel(); P.querySelector('#growReview')?.scrollIntoView({ block:'start' }); });
+    P.querySelector('#growRvClose')?.addEventListener('click', () => { this.rv = null; this.renderPanel(); });
+    P.querySelectorAll('[data-rvsel]').forEach(c => c.addEventListener('change', () => { this.rv.sel[c.dataset.rvsel] = c.checked; this.rv.pv = null; this.renderPanel(); }));
+    P.querySelector('#growRvPv')?.addEventListener('click', () => this.preview());
+    P.querySelector('#growRvGo')?.addEventListener('click', () => this.confirm());
+    P.querySelector('#growRb')?.addEventListener('click', () => { this.rbAsk = true; this.renderPanel(); });
+    P.querySelector('#growRbNo')?.addEventListener('click', () => { this.rbAsk = false; this.renderPanel(); });
+    P.querySelector('#growRbYes')?.addEventListener('click', () => this.rollback());
+  },
+  async preview(){
+    if(!this.rv || typeof D === 'undefined' || !D.ms) return;
+    const R = this.rvCalc(), cur = this.state.const || null, next = growCompute(R.sel, cur);
+    this.rv.pv = 'busy'; this.renderPanel();
+    const ns = contentPages().slice(0, 2).map(p => p.n); const out = { a:[], b:[] };
+    try{
+      await ensureFonts(D.ms.text);
+      for(const [key, c] of [['a', cur], ['b', next]]){
+        window.__growPreview = c; D._auto = null;
+        for(const n of ns){ const sc = composePage(n, { tk:tokens(), style:D.style || STYLE_A }); out[key].push(URL.createObjectURL(await scenePng(sc, .9))); }
+      }
+    }catch(e){ console.warn('grow preview', e); }
+    finally{ window.__growPreview = undefined; D._auto = null; }
+    if(this.rv) this.rv.pv = out.a.length ? out : null; this.renderPanel();
+  },
+  async confirm(){
+    if(!this.rv || this.rv.busy || !this.approver()) return;
+    const R = this.rvCalc(); if(!R.ok) return;
+    const out = R.pend.filter(f => !this.rv.sel[f.id]);
+    const prev = this.state.const || null, next = growCompute(R.sel, prev);
+    const entry = { lv:R.lv + 1, at:Date.now(), by:this.uid, inc:R.sel.map(f => f.id), out:out.map(f => f.id), prevConst:prev, prevCarry:this.state.carry || 0, const:next };
+    const st = { level:R.lv + 1, carry:R.xp - R.need, const:next, levels:[...(this.state.levels || []), entry], approver:this.state.approver || null };
+    this.rv.busy = true; this.rv.msg = null; this.renderPanel();
+    try{
+      await this.db.doc('grow_meta/state').set(JSON.parse(JSON.stringify(st)));
+      this.state = { ...this.state, ...st };
+      // 먹이 상태는 기록용(레벨 기록의 포함·제외 목록이 기준). 실패해도 레벨업은 유지
+      for(const f of R.sel){ const { id, ...d } = f; try{ await this.db.doc(`grow_feeds/${id}`).set(JSON.parse(JSON.stringify({ ...d, status:'in', inLevel:R.lv + 1, ...(d.gray ? { gray:false, approved:true } : {}) }))); }catch(e){} }
+      for(const f of out){ const { id, ...d } = f; try{ await this.db.doc(`grow_feeds/${id}`).set(JSON.parse(JSON.stringify({ ...d, status:'out', outLevel:R.lv + 1 }))); }catch(e){} }
+      this.rv = null; this.log = [{ lv:'ok', html:`<b>Lv${R.lv + 1}</b>로 레벨업했어요. 새 체질은 지금부터 만드는 프로젝트(디자인 가이드를 아직 확정하지 않은 것)에 적용돼요.` }];
+      this.lvFx = Date.now();
+    }catch(e){
+      console.error('grow confirm', e); this.rv.busy = false;
+      this.rv.msg = { lv:'err', t:/permission|denied|not_granted|not_writer|forbidden/i.test(String(e?.code || e?.message || '')) ? '저장할 권한이 없어 확정하지 못했어요.' : '확정하지 못했어요. 잠시 뒤 다시 눌러 주세요.' };
+    }
+    await this.reload(); window.Design?.onGrow?.();
+  },
+  async rollback(){
+    if(!this.approver()) return; const L = this.state.levels || []; const e = L[L.length - 1]; if(!e) return;
+    this.rbAsk = false;
+    const st = { level:e.lv - 1, carry:e.prevCarry || 0, const:e.prevConst || null, levels:L.slice(0, -1), approver:this.state.approver || null };
+    try{
+      await this.db.doc('grow_meta/state').set(JSON.parse(JSON.stringify(st)));
+      this.state = { ...this.state, ...st };
+      for(const id of [...(e.inc || []), ...(e.out || [])]){ const f = this.feeds.find(x => x.id === id); if(!f) continue; const { id:_, inLevel, outLevel, ...d } = f; void _; void inLevel; void outLevel;
+        try{ await this.db.doc(`grow_feeds/${id}`).set(JSON.parse(JSON.stringify({ ...d, status:'pending', ...(d.approved ? { gray:true, approved:false } : {}) }))); }catch(x){} }
+      this.log = [{ lv:'info', html:`Lv${e.lv - 1}로 되돌렸어요. 그 레벨에 넣었던 먹이는 다시 검토 대기예요.` }];
+    }catch(x){ console.error('grow rollback', x); this.log = [{ lv:'err', html:'되돌리지 못했어요. 잠시 뒤 다시 해 주세요.' }]; }
+    await this.reload(); window.Design?.onGrow?.();
+  },
+
   sum(){
     const pend = this.pending(), ok = pend.filter(f => !f.gray), gray = pend.filter(f => f.gray);
     const lv = this.state.level || 1, need = growNeed(lv);
@@ -349,6 +514,7 @@ const Grow = {
     if(this.log.length) h += `<ul class="glog">${this.log.map(l => `<li class="${l.lv}">${l.html}</li>`).join('')}</ul>`;
     h += `</section>`;
     // 이번 레벨 먹이
+    if(!this.rv){
     const pend = this.pending().sort((a, b) => (b.at || 0) - (a.at || 0));
     h += `<section class="gsec"><h3>이번 레벨 먹이 <small class="muted">${pend.length}개</small></h3>`;
     if(!pend.length) h += `<p class="muted gnote">아직 없어요.</p>`;
@@ -358,7 +524,9 @@ const Grow = {
     }).join('')}</tbody></table></div>`;
     if(pend.some(f => f.gray)) h += `<p class="gnote muted">「확인 필요」 먹이는 회색 경험치예요. 레벨업 검토 때 승인자가 통과시키면 경험치로 채워져요.</p>`;
     h += `</section>`;
-    P.innerHTML = h; this.bind(P);
+    }
+    h += this.reviewHtml();
+    P.innerHTML = h; this.bind(P); this.bindReview(P);
   },
   bind(P){
     P.querySelector('#growClose').onclick = () => this.close();
