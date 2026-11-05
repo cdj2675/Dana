@@ -392,11 +392,12 @@ function refTraitsHtml(){
   const top = t.comp ? Object.entries(t.comp).filter(([, v]) => v >= 2).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${CP[k]}${v === 3 ? '(거의 모든 쪽)' : ''}`) : [];
   const off = t.comp ? Object.entries(t.comp).filter(([, v]) => v === 0).map(([k]) => CP[k]) : [];
   return `<div class="blk"><div class="row" style="justify-content:space-between"><h3 style="margin:0">레퍼런스 성향</h3><label class="chk"><input type="checkbox" data-act2="refUse" ${D.refUse !== false ? 'checked' : ''}> 배치에 반영</label></div>
-    <p class="note">모양·색은 따라 하지 않고, 쪽 밀도·색 면적·자주 쓰는 구성만 Dana 배치에 반영합니다.${t.by === 'pixel' && S.sample ? ' 구성 비중은 Claude가 읽는 중이거나 읽지 못했습니다.' : t.by === 'pixel' ? ' 이 화면에서는 구성 비중을 읽을 수 없어 밀도·색 면적만 씁니다.' : ''}</p>
+    <p class="note">레퍼런스의 쪽 밀도·색 면적·자주 쓰는 도식과 도식 모양(머리틀·소제목·카드·단계·표·수치)을 읽어 「레퍼런스형」 시안을 그립니다. 색은 디자인 시스템에서 정한 색을 씁니다.${t.by === 'pixel' && S.sample ? ' 구성 비중은 Claude가 읽는 중이거나 읽지 못했습니다.' : t.by === 'pixel' ? ' 이 화면에서는 구성 비중을 읽을 수 없어 밀도·색 면적만 씁니다.' : ''}</p>
     <ul class="qlist"><li class="ok"><span class="qi">·</span><span><b>쪽 밀도</b> ${DN[t.density]} <span class="muted">(본문 사용 ${Math.round(t.ink * 100)}%) → 묶음 간격 ${t.density === 'high' ? '좁게' : t.density === 'low' ? '넓게' : '기본'}</span></span></li>
       <li class="ok"><span class="qi">·</span><span><b>색 면적</b> ${CN[t.colorUse]} <span class="muted">(${Math.round(t.color * 100)}%) → ${t.colorUse === 'rich' ? '카드·헤드 메시지·표 머리에 옅은 바탕' : '흰 바탕 위주'}</span></span></li>
       ${top.length ? `<li class="ok"><span class="qi">·</span><span><b>자주 쓰는 구성</b> ${esc(top.join(' · '))} <span class="muted">→ 이 유형을 먼저 고름</span></span></li>` : ''}
       ${off.length ? `<li class="ok"><span class="qi">·</span><span><b>거의 안 쓰는 구성</b> ${esc(off.join(' · '))}${off.includes('아이콘') ? ' <span class="muted">→ 아이콘 끔</span>' : ''}</span></li>` : ''}
+      ${t.look ? `<li class="ok"><span class="qi">·</span><span><b>도식 모양</b> ${esc(refLookDesc())} <span class="muted">→ 시안 고르기의 「레퍼런스형」이 이 모양으로 그림</span></span></li>` : ''}
       ${t.note ? `<li class="ok"><span class="qi">·</span><span class="muted">${esc(t.note)}</span></li>` : ''}</ul></div>`;
 }
 function pickSamples(){
@@ -412,16 +413,22 @@ const SIANS = [
   { k:'B', name:'구조형', viz:2, desc:'흰 머리틀 · 번호(01) 소제목 · 테두리 카드 · 번호 원 단계 상자 · 세로줄 표. 번호와 선으로 구조를 또렷하게, 맞는 다른 도식이 있으면 바꿔 씀' },
   { k:'C', name:'강조형', viz:1, desc:'진한 머리 띠 · 색 꼬리표 소제목 · 색 헤드 메시지 · 색 머리 카드 · 원형 단계 · 줄무늬 표 · 색 타일 수치. 색 면을 크게 써서 힘 있게' },
 ];
+// 레퍼런스(Claude가 모양까지 읽었을 때)가 있으면 레퍼런스형 시안 R을 맨 앞에 두고 기본으로 고름
+function refLookDesc(){ const L = refOn()?.look; if(!L) return ''; return Object.entries(L).filter(([k, v]) => v && REF_LOOK[k]?.[v]).map(([k, v]) => REF_LOOK[k][v]).join(' · '); }
+function sianList(){ const R = refStyle(); return R ? [{ k:'R', name:'레퍼런스형', viz:'ref', desc:`올린 레퍼런스에 맞춤 — ${refLookDesc()}. 도식 종류·밀도도 레퍼런스를 따름` }, ...SIANS] : SIANS; }
+function sianStyle(k){ if(k === 'R'){ const R = refStyle(); if(R) return R; k = 'A'; } const v = SIANS.find(x => x.k === k) || SIANS[0]; return { ...STYLES[v.k], viz:v.viz }; }
+function curSian(){ const L = sianList(); if(!D.sianSet && L[0].k === 'R') return 'R'; return L.some(x => x.k === D.sian) ? D.sian : L[0].k; }
 function P5(){
   if(!D.samples.length) D.samples = pickSamples();
-  const g3 = D.gates.g3; const cur = D.sian || 'A';
+  const g3 = D.gates.g3; const cur = curSian(); const LIST = sianList();
   return `<section class="dpanel">${phead('시안 고르기', `같은 ${D.samples.length}쪽(${D.samples.map(s => s.n + '쪽').join('·')})을 세 가지 스타일로, 인포그래픽을 적극 써서 그렸습니다. 마음에 드는 시안 하나를 고르세요. 고른 시안의 스타일과 도식 배치가 모든 쪽에 적용됩니다.`)}
-    <div class="sians">${SIANS.map(v => `<div class="sian ${cur === v.k ? 'on' : ''}"><div class="sianh"><b>시안 ${v.k} · ${v.name}</b>${v.k === 'A' ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${v.desc}</span><button type="button" class="${cur === v.k ? 'primary' : ''}" data-act="sian" data-v="${v.k}" aria-pressed="${cur === v.k}">${cur === v.k ? '✓ 고름' : '이 시안 고르기'}</button></div>
+    ${LIST[0].k === 'R' ? '' : refOn() ? `<div class="msg info">${refOn().by === 'claude' ? '레퍼런스의 도식 모양을 읽지 못했습니다. 밀도·색 면적만 반영합니다.' : '이 화면에서는 레퍼런스의 도식 모양을 읽을 수 없어 밀도·색 면적만 반영합니다.'}</div>` : ''}
+    <div class="sians">${LIST.map(v => `<div class="sian ${cur === v.k ? 'on' : ''}"><div class="sianh"><b>시안 ${v.k} · ${v.name}</b>${v.k === LIST[0].k ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${v.desc}</span><button type="button" class="${cur === v.k ? 'primary' : ''}" data-act="sian" data-v="${v.k}" aria-pressed="${cur === v.k}">${cur === v.k ? '✓ 고름' : '이 시안 고르기'}</button></div>
       <div class="sianpages">${D.samples.map(s => `<button type="button" class="pv" data-act="sian" data-v="${v.k}" aria-label="시안 ${v.k} ${s.n}쪽"><img alt="시안 ${v.k}로 그린 ${s.n}쪽" data-pv="sx:${v.k}:${s.n}"></button>`).join('')}</div></div>`).join('')}</div>
-    ${foot(g3 ? `스타일 확정됨 · 시안 ${esc(cur)} · 디자인 가이드 v${esc(D.guide.version)}` : '확정하면 고른 시안으로 모든 쪽을 만들고 4단계 전체 생성으로 넘어갑니다.', g3 ? `<button type="button" class="primary big" data-act="go" data-k="6">다음: 전체 생성 →</button>` : gateBtn(3, `시안 ${cur}로 확정`))}</section>`;
+    ${foot(g3 ? `스타일 확정됨 · 시안 ${esc(D.gates.g3 ? styleKey(D.style) : cur)} · 디자인 가이드 v${esc(D.guide.version)}` : '확정하면 고른 시안으로 모든 쪽을 만들고 4단계 전체 생성으로 넘어갑니다.', g3 ? `<button type="button" class="primary big" data-act="go" data-k="6">다음: 전체 생성 →</button>` : gateBtn(3, `시안 ${cur}로 확정`))}</section>`;
 }
-function styleDesc(st){ const v = SIANS.find(x => x.k === styleKey(st)); return v ? v.name : ''; }
-function styleFromSamples(){ const v = SIANS.find(x => x.k === (D.sian || 'A')) || SIANS[0]; return { ...STYLES[v.k], viz:v.viz }; }
+function styleDesc(st){ const v = sianList().find(x => x.k === styleKey(st)); return v ? v.name : ''; }
+function styleFromSamples(){ return sianStyle(curSian()); }
 
 // ── 6 전체 생성(디자인 보드)
 async function genPage(n, opt){
@@ -485,7 +492,7 @@ function detailHtml(n){
       ${sc.issues.length ? `<ul class="issues">${sc.issues.map(i => `<li><span class="tag ${i.lv === 'err' ? 'c-err' : 'c-warn'}">${i.lv === 'err' ? '오류' : '확인'}</span><span>${esc(i.msg)}</span></li>`).join('')}</ul>` : '<p class="note">자동 검사 통과: 겹침·넘침·최소 글자·하단 여백 이상 없음</p>'}
       ${pg.divider ? '' : `<div class="pr"><b>쪽 전체</b><div class="row"><button type="button" data-act="pre" data-v="fill">여백 채우기</button><button type="button" data-act="pre" data-v="shrink">상자 줄이기</button><button type="button" data-act="pre" data-v="alt">다른 유형으로</button><button type="button" data-act="pre" data-v="ab">시안 3개 보기</button></div></div>
       ${D.altFor === n ? `<div class="strat" id="dStrat">${altOptions(n).map((o, i) => `<button type="button" data-act="altPick" data-i="${i}"><img alt="" data-pv="alt:${n}:${i}"><b>${esc(o.name)}</b>${o.rec ? '<span class="tag rec">권장</span>' : ''}<span class="muted">${esc(o.why)}</span></button>`).join('')}</div>` : ''}
-      ${D.abFor === n ? `<div class="abpair ab3">${['A', 'B', 'C'].map(v => `<button type="button" data-act="abPick" data-v="${v}"><div class="pv"><img alt="시안 ${v}" data-pv="pab:${n}:${v}"></div><div class="cap"><b>시안 ${v} · ${SIANS.find(x => x.k === v).name}</b>${v === styleKey(P.opt.style || D.style) ? ' <span class="muted">지금</span>' : ''}</div></button>`).join('')}</div>` : ''}
+      ${D.abFor === n ? `<div class="abpair ab3">${sianList().map(x => x.k).map(v => `<button type="button" data-act="abPick" data-v="${v}"><div class="pv"><img alt="시안 ${v}" data-pv="pab:${n}:${v}"></div><div class="cap"><b>시안 ${v} · ${sianList().find(x => x.k === v).name}</b>${v === styleKey(P.opt.style || D.style) ? ' <span class="muted">지금</span>' : ''}</div></button>`).join('')}</div>` : ''}
       <div class="pr"><b>섹션별 유형</b>${subs.map((s, i) => { if(ids[i] === 'vs+' || !ids[i]) return ''; const cs = ids[i] === 'vs' ? [{ id:'vs' }, ...patCandidates(s)] : patCandidates(s); return `<div class="row"><span style="font-size:12.5px;flex:1 1 140px;min-width:0">${esc(s.head || '내용 ' + (i + 1))}</span><select data-ppat="${n}:${i}">${cs.map(c => `<option value="${c.id}" ${c.id === ids[i] ? 'selected' : ''}>${PATTERNS[c.id]?.name || c.id}</option>`).join('')}</select></div>`; }).join('')}</div>
       <div class="pr"><b>글자</b><div class="row"><button type="button" data-act="pre" data-v="up">키우기</button><button type="button" data-act="pre" data-v="down" ${fsNow <= minB ? 'aria-disabled="true"' : ''}>줄이기</button></div>${D.lockMsg?.n === n ? `<p class="note" style="color:var(--warn)">${esc(D.lockMsg.t)}</p>` : ''}</div>`}
       <div class="pr"><b>되돌리기 · 전체 적용</b><div class="row"><button type="button" data-act="pre" data-v="undo" ${P.hist.length ? '' : 'disabled'}>되돌리기</button><button type="button" data-act="pre" data-v="all" ${P.hist.length ? '' : 'disabled'} title="이 쪽의 글자 크기·줄이기 설정을 다른 쪽에도 적용">같은 수정을 전체 적용</button></div></div>
@@ -617,9 +624,9 @@ async function previewFor(key){
   const p = (async () => { const [kind, a, b, c] = key.split(':'); let sc;
     if(kind === 'mood'){ const tk = tokens({ mood:a, colors:a === D.mood ? D.colors : {} }); sc = composePage(+b, { tk, style:STYLE_A }); }
     else if(kind === 'ab') sc = composePage(+a, { tk:D.guide.tk, style:b === 'A' ? STYLE_A : STYLE_B });
-    else if(kind === 'sx'){ const v = SIANS.find(x => x.k === a); sc = composePage(+b, { tk:D.guide.tk, style:{ ...STYLES[a], viz:v.viz }, viz:v.viz }); }
+    else if(kind === 'sx'){ const st = sianStyle(a); sc = composePage(+b, { tk:D.guide.tk, style:st, viz:st.viz }); }
     else if(kind === 'alt'){ const o = altOptions(+a)[+b]; const P = D.pages[+a]; sc = composePage(+a, { tk:P.tk, style:P.opt.style || D.style, pats:o.pats, fontStep:P.opt.fontStep || 0 }); }
-    else if(kind === 'pab'){ const P = D.pages[+a]; sc = composePage(+a, { tk:P.tk, style:{ ...STYLES[b], viz:(P.opt.style || D.style)?.viz || 0 }, pats:P.opt.pats, fontStep:P.opt.fontStep || 0, level:P.opt.level || 0 }); }
+    else if(kind === 'pab'){ const P = D.pages[+a]; sc = composePage(+a, { tk:P.tk, style:b === 'R' ? sianStyle('R') : { ...STYLES[b], viz:(P.opt.style || D.style)?.viz || 0 }, pats:P.opt.pats, fontStep:P.opt.fontStep || 0, level:P.opt.level || 0 }); }
     void c; return URL.createObjectURL(await scenePng(sc, kind === 'alt' ? .7 : 100 / 72)); })();
   PV.set(key, p); return p;
 }
@@ -696,11 +703,11 @@ const ACT = {
   unmap:el => { D.mapping[el.dataset.i] = D.mapping[el.dataset.i].filter(x => x !== el.dataset.s); D._an = null; D._auto = null; renderDesign(); saveSoon(); },
   xlsPlan:async () => { await dl(`${WT()}매핑_보완제안_${today()}.xlsx`, planXlsx(false)); },
   pick:el => { D.samples[+el.dataset.i].pick = el.dataset.v; renderDesign(); },
-  sian:el => { D.sian = el.dataset.v; renderDesign(); saveSoon(); },
+  sian:el => { D.sian = el.dataset.v; D.sianSet = true; renderDesign(); saveSoon(); },
   sel:el => { const n = +el.dataset.n; D.sel = D.sel === n ? null : n; D.altFor = D.abFor = null; D.lockMsg = null; renderDesign(); if(D.sel) $('#dDetail')?.scrollIntoView({ behavior:'smooth', block:'nearest' }); },
   pre:el => preset(el.dataset.v),
   altPick:async el => { const o = altOptions(D.sel)[+el.dataset.i]; D.altFor = null; await genPage(D.sel, { pats:o.pats }); renderDesign(); saveSoon(); },
-  abPick:async el => { const st = { ...STYLES[el.dataset.v], viz:(D.style?.viz) || 0 }; D.abFor = null; await genPage(D.sel, { style:st }); renderDesign(); saveSoon(); },
+  abPick:async el => { const st = el.dataset.v === 'R' ? sianStyle('R') : { ...STYLES[el.dataset.v], viz:(D.style?.viz) || 0 }; D.abFor = null; await genPage(D.sel, { style:st }); renderDesign(); saveSoon(); },
   regenAll:() => { for(const n in D.pages) D.pages[n].tk = D.guide.tk; generateAll(); },
   one:async el => { const P = D.pages[D.sel]; const v = el.dataset.v; const nm = `${D.ms.name.replace(/\.[^.]+$/, '')}_p${String(D.sel).padStart(2, '0')}`;
     if(v === 'png') await dl(nm + '.png', await scenePng(P.sc, 200 / 72)); else if(v === 'svg') await dl(nm + '.svg', P.svg ||= await sceneSvg(P.sc)); else { busy('파워포인트 파일을 만드는 중…', .5); await dl(nm + '.pptx', await scenesPptx([P.sc])); busy(null); } },
@@ -716,10 +723,10 @@ const ACT = {
 async function confirmGate(g){
   if(g === 1){ await ensureFonts(D.ms.text); resetMetrics(); D.gates.g1 = true; D.growSnap = Grow.snap(); D.guide = { version:'1.0', date:today(), tk:tokens(), sig:guideSig(), history:[{ v:'1.0', date:today(), note:`처음 확정 · ${MOODS[D.mood].name}` }] }; go(4); }
   else if(g === 2){ D.gates.g2 = true; D.samples = pickSamples(); go(5); }
-  else if(g === 3){ D.style = styleFromSamples(); D.gates.g3 = true; const [a, b] = D.guide.version.split('.').map(Number); D.guide.version = `${a}.${b + 1}`; D.guide.history.push({ v:D.guide.version, date:today(), note:`스타일 확정 · 시안 ${D.sian || 'A'}(${SIANS.find(x => x.k === (D.sian || 'A')).name}) · 샘플 ${D.samples.map(s => s.n + '쪽').join(', ')}` }); D.pages = {}; go(6); }
+  else if(g === 3){ D.style = styleFromSamples(); D.gates.g3 = true; const [a, b] = D.guide.version.split('.').map(Number); D.guide.version = `${a}.${b + 1}`; D.guide.history.push({ v:D.guide.version, date:today(), note:`스타일 확정 · 시안 ${curSian()}(${sianList().find(x => x.k === curSian()).name}) · 샘플 ${D.samples.map(s => s.n + '쪽').join(', ')}` }); D.pages = {}; go(6); }
   saveSoon();
 }
-function resetProject(){ D.growSnap = null; D.gates = { g1:false, g2:false, g3:false }; D.mapping = null; D.plan = { pat:{}, dec:{} }; D.samples = []; D.style = null; D.sian = 'A'; D.pages = {}; D.guide = null; D.review = { ran:false, acked:{}, issues:[] }; D._an = null; D._auto = null; D.sel = null; PV.clear(); D.step = 1; }
+function resetProject(){ D.growSnap = null; D.gates = { g1:false, g2:false, g3:false }; D.mapping = null; D.plan = { pat:{}, dec:{} }; D.samples = []; D.style = null; D.sian = 'A'; D.sianSet = false; D.pages = {}; D.guide = null; D.review = { ran:false, acked:{}, issues:[] }; D._an = null; D._auto = null; D.sel = null; PV.clear(); D.step = 1; }
 async function takeFiles(id, files){
   dmsg(id);
   try{
@@ -758,14 +765,14 @@ async function saveState(){
   if(!W.ok() || !D.ms) return;
   const st = { v:1, at:Date.now(), msSig:{ name:D.ms.name, pages:D.ms.pages.length }, rfp:D.rfp ? { name:D.rfp.name, items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', itemsFrom:D.rfp.itemsFrom || null, itemsOk:!!D.rfp.itemsOk, docs:(D.rfp.docs || []).map(d => ({ name:d.name, kind:d.kind, items:d.items, cons:d.cons, by:d.by, mode:d.mode, basis:d.basis, pages:d.pages })) } : null,
     grid:D.grid, mood:D.mood, colors:D.colors, roles:{ body:famOf(D.roles.body).label, title:famOf(D.roles.title).label, num:D.roles.num ? famOf(D.roles.num).label : null }, iconMap:D.iconMap,
-    mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, sian:D.sian || 'A', samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
+    mapping:D.mapping, plan:D.plan, gates:D.gates, guide:D.guide ? { version:D.guide.version, date:D.guide.date, history:D.guide.history } : null, style:D.style, sian:D.sian || 'A', sianSet:!!D.sianSet, samples:D.samples.map(s => ({ n:s.n, kind:s.kind, pick:s.pick })),
     pageOpt:Object.fromEntries(Object.entries(D.pages).map(([n, P]) => [n, P.opt])), acked:D.review.acked, refTraits:D.refTraits || null, refUse:D.refUse !== false, growSnap:D.growSnap || null, myDs:D.myDs || null };
   try{ await W.set('design/state', st); }catch(e){ console.warn('design save', e); }
 }
 async function loadState(){
   if(!W.ok()) return; let st = null; try{ st = await W.get('design/state'); }catch(e){} if(!st || st.v !== 1) return;
   if(D.ms) return;
-  Object.assign(D, { grid:st.grid || null, mood:st.mood || 'navy', colors:st.colors || {}, iconMap:st.iconMap || {}, mapping:st.mapping || null, plan:st.plan || { pat:{}, dec:{} }, style:st.style || null, sian:st.sian || 'A', samples:st.samples || [] });
+  Object.assign(D, { grid:st.grid || null, mood:st.mood || 'navy', colors:st.colors || {}, iconMap:st.iconMap || {}, mapping:st.mapping || null, plan:st.plan || { pat:{}, dec:{} }, style:st.style || null, sian:st.sian || 'A', sianSet:!!st.sianSet, samples:st.samples || [] });
   if(st.refTraits) D.refTraits = st.refTraits; if(st.refUse === false) D.refUse = false;
   if(st.myDs){ const c = { ...D.colors }; applyMyDs(st.myDs); D.colors = { ...D.colors, ...Object.fromEntries(Object.entries(st.colors || {}).filter(([, v]) => v)) }; void c; }
   if(st.rfp){ D.rfp = { ...st.rfp, pages:0 }; if(!D.rfp.docs && D.rfp.name !== '직접 입력') D.rfp.docs = [{ name:D.rfp.name, kind:'과업지시서', items:D.rfp.items, cons:D.rfp.cons, by:D.rfp.by, mode:D.rfp.mode || 'score', basis:D.rfp.basis || '', pages:0 }]; }

@@ -623,28 +623,56 @@ function pxTraits(canvases){
     for(let y = Math.floor(h * .12); y < Math.floor(h * .93); y++) for(let x = Math.floor(w * .06); x < Math.floor(w * .94); x++){ const i = (y * w + x) * 4; const [, sat, l] = rgb2hsl(d[i], d[i+1], d[i+2]); n++; if(l < .93) ink++; if(sat > .2 && l > .15 && l < .93) col++; } }
   return n ? { ink:ink / n, color:col / n } : null;
 }
-const REF_PROMPT = `첨부 이미지는 제안서·보고서 레퍼런스 쪽들을 한 장에 모은 것입니다. 모양을 따라 하려는 것이 아니라 구성 성향만 알고 싶습니다. JSON 하나로만 답하세요.
-{"components":{"table":0~3,"cards":0~3,"flow":0~3,"kpi":0~3,"timeline":0~3,"photo":0~3,"icon":0~3},"headMsg":true|false,"summaryBox":true|false,"note":"구성 성향 한 줄(40자 이내)"}
-- components: 쪽들에서 그 요소가 얼마나 자주·크게 쓰이는지(0 없음, 1 가끔, 2 자주, 3 거의 모든 쪽). table=표, cards=카드·상자 묶음, flow=단계·절차 도식, kpi=큰 숫자 강조, timeline=일정·연표, photo=사진, icon=아이콘.
-- headMsg: 제목 아래 핵심 문장 강조가 있는지. summaryBox: 쪽 아래 요약·실행 상자가 있는지.`;
+// 레퍼런스 모양: 도식·구성 요소를 Dana가 그릴 수 있는 모양 중 가장 가까운 것으로 고름(레퍼런스와 최대한 비슷하게)
+const REF_LOOK = {
+  header:{ panel:'제목 영역 뒤에 옅은 색 바탕', plain:'흰 바탕에 제목과 가는 선', band:'진한 색 띠 위에 흰 제목', line:'무채색(검정·회색) 제목과 선' },
+  sub:{ bar:'소제목 앞 세로 막대', num:'소제목 앞 01·02 번호', pill:'색 띠·꼬리표 안에 흰 소제목', plain:'장식 없는 굵은 글자' },
+  msg:{ tint:'제목 아래 핵심 문장을 옅은 바탕 상자로', solid:'핵심 문장을 진한 색 상자에 흰 글자로', none:'핵심 문장 강조 없음' },
+  card:{ tint:'옅은 바탕 카드(윗선·아이콘)', outline:'흰 바탕 테두리 카드', header:'색 머리 띠가 있는 카드(머리에 흰 제목)' },
+  flow:{ chevron:'화살표 모양(쉐브론) 단계', box:'번호 원이 달린 상자 단계', circle:'큰 원을 선으로 잇는 단계' },
+  table:{ headfill:'색 머리 행 + 가로줄', grid:'세로줄까지 있는 격자 표', zebra:'진한 머리 행 + 줄무늬 행' },
+  kpi:{ tint:'옅은 바탕 위 큰 숫자', outline:'테두리 상자 위 큰 숫자', solid:'색 채운 타일에 흰 큰 숫자' },
+  corner:{ square:'모서리가 각짐', round:'모서리가 둥긂' },
+};
+const REF_PROMPT = n => `첨부 이미지는 제안서·보고서 디자인 레퍼런스 ${n}쪽을 한 장에 모은 것입니다(번호 1~${n}). 이 레퍼런스와 최대한 비슷한 구성과 도식 모양으로 새 제안서를 그리려고 합니다. 쪽들을 보고 JSON 하나로만 답하세요.
+{"components":{"table":0~3,"cards":0~3,"flow":0~3,"kpi":0~3,"timeline":0~3,"photo":0~3,"icon":0~3},"headMsg":true|false,"summaryBox":true|false,"density":"high|mid|low",${Object.keys(REF_LOOK).map(k => `"${k}":"${Object.keys(REF_LOOK[k]).join('|')}"`).join(',')},"note":"이 레퍼런스의 구성·도식 특징 한 줄(50자 이내)"}
+- components: 그 요소가 얼마나 자주·크게 쓰이는지(0 없음, 1 가끔, 2 자주, 3 거의 모든 쪽). table=표, cards=카드·상자 묶음, flow=단계·절차 도식, kpi=큰 숫자 강조, timeline=일정·연표, photo=사진, icon=아이콘.
+- headMsg: 제목 아래 핵심 문장 강조가 있는지. summaryBox: 쪽 아래 요약·실행 상자가 있는지. density: 쪽이 얼마나 빽빽한지.
+- 나머지는 보기 중 가장 가까운 것 하나(그 요소가 없으면 가장 비슷한 느낌으로):
+${Object.entries(REF_LOOK).map(([k, o]) => `  ${k}: ${Object.entries(o).map(([v, d]) => `${v}=${d}`).join(', ')}`).join('\n')}`;
 async function analyzeRefs(){
   const refs = D.assets.refs; if(!refs.length){ D.refTraits = null; return; }
   const pxs = refs.map(r => r.px).filter(Boolean); if(!pxs.length){ D.refTraits = null; return; }
   const ink = pxs.reduce((a, p) => a + p.ink, 0) / pxs.length, color = pxs.reduce((a, p) => a + p.color, 0) / pxs.length;
   const sig = refs.map(r => r.name).join('|');
-  const T = { sig, ink, color, density:ink >= .26 ? 'high' : ink >= .16 ? 'mid' : 'low', colorUse:color >= .07 ? 'rich' : color >= .035 ? 'moderate' : 'minimal', comp:null, headMsg:null, summaryBox:null, note:'', by:'pixel' };
-  if(D.refTraits?.sig === sig && D.refTraits.comp) Object.assign(T, { comp:D.refTraits.comp, headMsg:D.refTraits.headMsg, summaryBox:D.refTraits.summaryBox, note:D.refTraits.note, by:'claude' });
+  const T = { sig, ink, color, density:ink >= .26 ? 'high' : ink >= .16 ? 'mid' : 'low', colorUse:color >= .07 ? 'rich' : color >= .035 ? 'moderate' : 'minimal', comp:null, look:null, headMsg:null, summaryBox:null, note:'', by:'pixel' };
+  if(D.refTraits?.sig === sig && D.refTraits.comp && D.refTraits.look) Object.assign(T, { comp:D.refTraits.comp, look:D.refTraits.look, density:D.refTraits.density, headMsg:D.refTraits.headMsg, summaryBox:D.refTraits.summaryBox, note:D.refTraits.note, by:'claude' });
   D.refTraits = T;
-  if(T.comp || !S.sample || !S.imgLimits) return;
-  // Claude: 썸네일을 한 장(최대 4×3)으로 모아 보냄
-  const ths = refs.flatMap(r => r.thumbs || []).slice(0, 12); if(!ths.length) return;
-  const ims = await Promise.all(ths.map(u => loadImg(u))); const cw = 200, chh = 283, cols = Math.min(4, ims.length), rows = Math.ceil(ims.length / cols);
-  const c = document.createElement('canvas'); c.width = cols * cw; c.height = rows * chh; const ctx = c.getContext('2d'); ctx.fillStyle = '#888'; ctx.fillRect(0, 0, c.width, c.height);
-  ims.forEach((im, i) => { if(!im) return; const s = Math.min(cw / im.width, chh / im.height); ctx.drawImage(im, (i % cols) * cw + (cw - im.width * s) / 2, Math.floor(i / cols) * chh + (chh - im.height * s) / 2, im.width * s, im.height * s); });
-  try{ const blob = await canvasBlob(c, 'image/jpeg', .85); const raw = await S.sample.json(REF_PROMPT, { images:[blob] }); const comp = raw?.components || {};
-    const ok = k => clamp(Math.round(+comp[k] || 0), 0, 3);
-    if(D.refTraits?.sig === sig) Object.assign(D.refTraits, { comp:{ table:ok('table'), cards:ok('cards'), flow:ok('flow'), kpi:ok('kpi'), timeline:ok('timeline'), photo:ok('photo'), icon:ok('icon') }, headMsg:!!raw?.headMsg, summaryBox:!!raw?.summaryBox, note:String(raw?.note || '').slice(0, 60), by:'claude' });
-  }catch(e){ console.warn('ref traits', e); }
+  if(T.look || !S.sample || !S.imgLimits) return;
+  // Claude: 쪽을 4장씩(700px) 모아 최대 2번 보냄 → 항목마다 많이 나온 답
+  const ths = refs.flatMap(r => r.thumbs || []).slice(0, 8); if(!ths.length) return;
+  const ims = (await Promise.all(ths.map(u => loadImg(u)))).filter(Boolean); const answers = [];
+  for(let i = 0; i < ims.length; i += 4){
+    const grp = ims.slice(i, i + 4);
+    try{ const raw = await S.sample.json(REF_PROMPT(grp.length), { images:[await growSheet(grp)] }); if(raw) answers.push(raw); }
+    catch(e){ console.warn('ref traits', e); if(e?.code === 'not_granted' || e?.code === 'rate_limited') break; }
+  }
+  if(!answers.length || D.refTraits?.sig !== sig) return;
+  const avg = k => clamp(Math.round(answers.reduce((a, r) => a + (+r?.components?.[k] || 0), 0) / answers.length), 0, 3);
+  const vote = (k, opts) => { const c = {}; answers.forEach(r => { const v = String(r?.[k] || ''); if(opts.includes(v)) c[v] = (c[v] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || null; };
+  const look = {}; for(const [k, o] of Object.entries(REF_LOOK)) look[k] = vote(k, Object.keys(o));
+  const dens = vote('density', ['high', 'mid', 'low']);
+  Object.assign(D.refTraits, { comp:{ table:avg('table'), cards:avg('cards'), flow:avg('flow'), kpi:avg('kpi'), timeline:avg('timeline'), photo:avg('photo'), icon:avg('icon') }, look,
+    density:dens || D.refTraits.density, headMsg:answers.some(r => r.headMsg), summaryBox:answers.some(r => r.summaryBox), note:String(answers[0]?.note || '').slice(0, 70), by:'claude' });
+}
+// 레퍼런스 모양 → Dana 스타일(시안 R). 없으면 null
+function refStyle(){
+  const L = refOn()?.look; if(!L) return null;
+  const m = (v, map, d) => map[v] || d;
+  const flow = m(L.flow, { chevron:'A', box:'B', circle:'C' }, 'A');
+  return { sub:m(L.sub, { bar:'A', num:'B', pill:'C', plain:'A' }, 'A'), card:m(L.card, { tint:'A', outline:'B', header:'C' }, 'A'), table:m(L.table, { headfill:'A', grid:'B', zebra:'C' }, 'A'),
+    flow, hub:flow === 'B' ? 'B' : 'A', kpi:m(L.kpi, { tint:'A', outline:'B', solid:'C' }, 'A'), timeline:flow === 'C' ? 'A' : 'B', vs:flow === 'A' ? 'A' : 'B',
+    head:m(L.header, { panel:'panel', plain:'plain', band:'band', line:'line' }, null), msg:L.msg === 'solid' ? 'C' : 'A', r:L.corner === 'square' ? 0 : L.corner === 'round' ? 7 : undefined, viz:'ref', ref:true };
 }
 const refOn = () => D.refUse !== false && D.refTraits ? D.refTraits : null;
 async function classifyAssets(files){
@@ -660,7 +688,7 @@ async function classifyAssets(files){
         const topic = Object.keys(ICON_TOPICS).find(t => f.name.includes(t));
         if(topic && (ext === 'svg' || ext === 'png')){ const url = await blobToDataURL(f); D.assets.icons.push({ topic, name:f.name, url }); D.iconMap[topic] = 'file:' + f.name; continue; }
         const url = URL.createObjectURL(f); const pal = ext === 'svg' ? [] : await paletteOf(f).catch(() => []);
-        let px = null, th = null; if(ext !== 'svg'){ try{ const bmp = await createImageBitmap(f); const c = document.createElement('canvas'); c.width = 300; c.height = Math.max(1, Math.round(300 * bmp.height / bmp.width)); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); px = pxTraits([c]); th = c.toDataURL('image/jpeg', .7); }catch(e){} }
+        let px = null, th = null; if(ext !== 'svg'){ try{ const bmp = await createImageBitmap(f); const sc0 = 600 / Math.max(bmp.width, bmp.height); const c = document.createElement('canvas'); c.width = Math.round(bmp.width * sc0); c.height = Math.max(1, Math.round(bmp.height * sc0)); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); px = pxTraits([c]); th = c.toDataURL('image/jpeg', .8); }catch(e){} }
         D.assets.refs.push({ name:f.name, kind:'image', url, thumbs:th ? [th] : [], px, palette:pal });
       }
       else if(ext === 'pdf'){
@@ -669,7 +697,7 @@ async function classifyAssets(files){
         const pick = [...new Set(Array.from({ length:k }, (_, i) => from + Math.round(i * (N - from) / Math.max(1, k - 1))))];
         const thumbs = [];
         for(const [i, n] of pick.entries()){ if(pick.length > 1) busy(`「${f.name}」 ${N}쪽 중 ${n}쪽을 보는 중…`, .2 + .7 * i / pick.length);
-          const pg = await pdf.getPage(n); const vp = pg.getViewport({ scale:1 }); const v = pg.getViewport({ scale:300 / Math.max(vp.width, vp.height) });
+          const pg = await pdf.getPage(n); const vp = pg.getViewport({ scale:1 }); const v = pg.getViewport({ scale:600 / Math.max(vp.width, vp.height) });
           const c = document.createElement('canvas'); c.width = Math.round(v.width); c.height = Math.round(v.height); const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
           await pg.render({ canvasContext:ctx, viewport:v }).promise; pg.cleanup(); thumbs.push(c); }
         const all = document.createElement('canvas'); all.width = thumbs[0].width; all.height = thumbs.reduce((a, c) => a + c.height, 0); let yy = 0; for(const c of thumbs){ all.getContext('2d').drawImage(c, 0, yy); yy += c.height; }
