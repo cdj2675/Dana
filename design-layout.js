@@ -16,14 +16,15 @@ function tokens(over){
   const m = MOODS[over?.mood || D.mood] || MOODS.navy; const L = locks();
   const prim = (over?.colors || D.colors).primary || m.primary, acc = (over?.colors || D.colors).accent || m.accent;
   const G = D.grid || DEFAULT_GRID();
-  const body = Math.max(11, L.bodyMin || 0), fig = Math.max(9, L.figMin || L.bodyMin || 0);   // 표·그림 하한이 따로 없으면 본문 하한을 모든 글자에
-  const c = { p0:mix(prim, '#000000', .28), p1:prim, p2:mix(prim, '#FFFFFF', .88), p3:mix(prim, '#FFFFFF', .55), bg:'#FFFFFF', bg2:mix(prim, '#FFFFFF', .95),
-    line:mix(prim, '#FFFFFF', .7), point:prim !== m.primary ? mix(prim, '#FFFFFF', .3) : m.point, accent:acc, ink:m.ink, ink2:m.ink2, white:'#FFFFFF',
-    page:'#FFFFFF', note:mix(prim, '#FFFFFF', .9), gray:mix(m.ink, '#FFFFFF', .92), thead:mix(prim, '#FFFFFF', .9), shadow:mix(m.ink, '#FFFFFF', .86), accL:mix(acc, '#FFFFFF', .3) };
+  const O = over?.dsOver === undefined ? D.dsOver || {} : over.dsOver || {};   // 내 디자인 시스템(있을 때만)
+  const body = Math.max(O.size?.body || 11, L.bodyMin || 0), fig = Math.max(9, L.figMin || L.bodyMin || 0);   // 표·그림 하한이 따로 없으면 본문 하한을 모든 글자에
+  const c = { p0:mix(prim, '#000000', .28), p1:prim, p2:mix(prim, '#FFFFFF', .88), p3:mix(prim, '#FFFFFF', .55), bg:'#FFFFFF', bg2:O.bg2 || mix(prim, '#FFFFFF', .95),
+    line:mix(prim, '#FFFFFF', .7), point:prim !== m.primary ? mix(prim, '#FFFFFF', .3) : m.point, accent:acc, ink:O.ink || m.ink, ink2:O.ink ? mix(O.ink, '#FFFFFF', .3) : m.ink2, white:'#FFFFFF',
+    page:'#FFFFFF', note:O.bg2 || mix(prim, '#FFFFFF', .9), gray:mix(m.ink, '#FFFFFF', .92), thead:mix(prim, '#FFFFFF', .9), shadow:mix(m.ink, '#FFFFFF', .86), accL:mix(acc, '#FFFFFF', .3) };
   c.onP1 = contrast('#FFFFFF', prim) >= 4.5 ? '#FFFFFF' : m.ink;
   return { mood:over?.mood || D.mood, moodName:m.name, header:m.header, iconTone:m.icon, grid:G,
-    size:{ title:body + 7, sub:body + 2.5, msg:body + 3.5, body, table:Math.max(fig, 10.5), caption:Math.max(fig, 9), head:Math.max(fig, 11), evalNo:Math.max(fig, 15), kpi:Math.max(24, body * 2), pno:Math.max(fig, 9.5) },
-    lh:1.6, r:4, color:c, fonts:{ ...D.roles }, locks:L,
+    size:{ title:Math.max(O.size?.title || body + 7, body + 3), sub:Math.max(O.size?.sub || body + 2.5, body + 1), msg:Math.max(O.size?.sub ? O.size.sub + 1 : body + 3.5, body + 1.5), body, table:Math.max(fig, 10.5), caption:Math.max(fig, 9), head:Math.max(fig, 11), evalNo:Math.max(fig, 15), kpi:Math.max(24, body * 2), pno:Math.max(fig, 9.5) },
+    lh:O.lh || 1.6, r:O.r ?? 4, color:c, fonts:{ ...D.roles }, locks:L,
     // 레퍼런스 성향(켜져 있을 때만): 밀도 → 묶음 간격, 색 면적 → 카드·헤드 메시지·라벨 열 바탕, 아이콘 사용
     // 레퍼런스가 없으면 내장 기본값(제출본 측정: 색 면적 9~12% → 옅은 바탕을 기본으로)
     ref:(t => t ? { dens:t.density, rich:t.colorUse !== 'minimal', icon:t.comp ? t.comp.icon >= .5 : true, by:t.by || 'ref' } : { dens:'mid', rich:true, icon:true, base:true })(over?.ref === undefined ? (refOn() || growRefTraits()) : over.ref) };
