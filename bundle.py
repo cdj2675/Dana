@@ -7,8 +7,8 @@ def inline(m):
     js = (root / m.group(1)).read_text(encoding='utf-8')
     assert '</script' not in js.lower(), m.group(1) + ' 안에 </script 가 있습니다'
     return '<script>\n' + js + '\n</script>'
-out = re.sub(r'<script src="((?:design|hwp)-[a-z]+\.js)"></script>', inline, html)
-assert 'src="design-' not in out and 'src="hwp-' not in out
+out = re.sub(r'<script src="((?:design|hwp|review)-[a-z]+\.js)"></script>', inline, html)
+assert 'src="design-' not in out and 'src="hwp-' not in out and 'src="review-' not in out
 (root / 'dist').mkdir(exist_ok=True)
 (root / 'dist' / 'dana.html').write_text(out, encoding='utf-8')
 print('dist/dana.html', len(out.encode('utf-8')) // 1024, 'KB')
