@@ -663,7 +663,7 @@ label.drop.gdrop{min-height:96px;padding:12px}
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="2" width="17" height="22" rx="3" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.6"/><path d="M7 8h9M7 12h9M7 16h5" stroke="var(--brand)" stroke-width="1.6" stroke-linecap="round"/><circle cx="19.5" cy="19.5" r="4.6" fill="var(--panel)" stroke="var(--brand)" stroke-width="1.8"/><path d="m22.8 22.8 3 3" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.19.0</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
+      <span>Dana</span><span class="ver" id="appVer" title="지금 쓰고 있는 버전">v1.19.1</span><span class="slogan">저녁 있는 삶을 위한 디자인 검수 자동화</span>
     </div>
     <div class="topr"><div class="growwrap"><button type="button" class="growbtn" id="growBtn" aria-haspopup="dialog" aria-describedby="growTip"></button><div class="growtip" id="growTip" role="tooltip"></div></div><div class="wswrap"><button type="button" class="wsbtn" id="wsBtn" aria-haspopup="true" aria-expanded="false"></button><div class="wspanel" id="wsPanel" hidden></div></div>
     <button class="ghost" type="button" id="goHelp">검사 기준 보기</button></div>
@@ -878,7 +878,7 @@ if(window.pdfjsLib){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnj
 
 // ═════════════════════════════ 상태
 // 버전: 고칠 때마다 이 값과 README 「변경 기록」을 함께 올립니다.
-const VERSION = '1.19.0';
+const VERSION = '1.19.1';
 const S = {
   data:null, gov:null, govOverride:null,
   source:null, batches:[], design:{}, mode:'page', firstMap:1,
@@ -1849,7 +1849,8 @@ function desNearAll(text){ const q = stemsOf(text); const best = [];
 function whyHtml(x){ const w = [x.why, x.judged?.why ? 'Claude: ' + x.judged.why : ''].filter(Boolean); return w.length ? `<div class="sub why">${esc(w.join(' · '))}</div>` : ''; }
 function renderJudge(){
   const el = $('#coreNote'); if(!el) return;
-  if(S.strict === 'all' || !S.source || !S.ready){ el.hidden = true; return; }
+  if(!S.source || !S.ready){ el.hidden = true; return; }
+  if(S.strict === 'all'){ el.hidden = false; el.innerHTML = `<b>글자 단위로 모두 보기</b> · 원문과 글자가 하나라도 다르면 모두 보여 줍니다. 요약·바꿔 쓴 줄도 포함됩니다. <button type="button" class="linkbtn" id="coreBack">핵심만 보기로 돌아가기</button>`; $('#coreBack').onclick = () => setStrict('core'); return; }
   const J = S.judge; el.hidden = false;
   el.innerHTML = `<b>핵심만 보기</b> · 숫자·조항·부정 표현이 바뀐 것, 원문에 없는 수치·조항, 핵심 내용이 빠진 문단만 보여 줍니다. 표현만 다른 ${(S.coreExpr || 0).toLocaleString()}줄은 접었습니다.` +
     (J?.running ? ` <span class="muted">Claude가 남은 후보 ${J.total}건의 뜻을 확인하는 중… ${J.done || 0}건</span>` : J ? ` Claude가 의도·맥락이 같다고 본 ${J.dropped}건을 뺐습니다.` : S.sample ? '' : ' <span class="muted">이 화면에서는 Claude 의미 확인을 쓸 수 없어 규칙으로만 걸렀습니다.</span>') +
