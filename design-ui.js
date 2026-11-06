@@ -806,7 +806,7 @@ window.Design = {
     for(const id of ['tabDesign', 'tabReview']) $('#' + id).addEventListener('keydown', e => { if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){ e.preventDefault(); const o = id === 'tabDesign' ? 'tabReview' : 'tabDesign'; $('#' + o).focus(); $('#' + o).click(); } });
     DZ().addEventListener('click', e => { const b = e.target.closest('[data-act]'); if(!b || b.disabled || b.getAttribute('aria-disabled') === 'true' && b.dataset.v !== 'down') return; const f = ACT[b.dataset.act]; if(f) f(b); });
     $('#conBar').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if(!b) return; const f = ACT[b.dataset.act]; if(f) f(b); });
-    let m = 'design'; try{ m = localStorage.getItem('dana:mode') || 'design'; }catch(e){}
+    let m = 'review'; try{ m = localStorage.getItem('dana:mode') || 'review'; }catch(e){}
     setTab(m, false); renderBanner();
     Vault.init().then(() => { Vault.render(); if(S.dbTried && W.ok()) this.onWs(); });
   },
