@@ -471,7 +471,7 @@ const Grow = {
     const s = this.sum(), m = this.mood(), w = Math.min(100, s.xp / s.need * 100);
     b.innerHTML = `<span class="growtile">${catSvg(m, 2)}</span><span class="growmini"><b>Lv${s.lv}</b><span class="xpmini"><i style="width:${w}%"></i></span></span>`;
     b.setAttribute('aria-label', `학습 열기. Dana Lv${s.lv}, ${this.moodText(m)}, 경험치 ${s.xp}/${s.need}`);
-    const t = document.getElementById('growTip'); if(t) t.textContent = 'Dana에게 먹이를 주면 성장시킬 수 있어요';
+    const t = document.getElementById('growTip'); if(t) t.textContent = 'Dana에게 먹이를 주고 디자인 완성도를 성장시켜보세요';
   },
   render(){ this.renderBtn(); if(!document.getElementById('growOv')?.hidden) this.renderPanel(); },
 
